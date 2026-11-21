@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#ff6b77"/>
+      <stop offset="0.6" stop-color="#e63946"/>
+      <stop offset="1" stop-color="#9e1b27"/>
+    </radialGradient>
+    <linearGradient id="env" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f6ead6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g fill="#ffffff" opacity="0.55">
+    <circle cx="70" cy="90" r="9"/><circle cx="140" cy="60" r="6"/><circle cx="440" cy="300" r="8"/>
+    <circle cx="60" cy="420" r="7"/><circle cx="450" cy="440" r="10"/><circle cx="110" cy="250" r="5"/>
+    <circle cx="300" cy="70" r="6"/><circle cx="380" cy="470" r="6"/>
+  </g>
+  <!-- ふうとう -->
+  <rect x="86" y="190" width="340" height="230" rx="26" fill="url(#env)" stroke="#d9c7a8" stroke-width="6"/>
+  <path d="M96 206 L256 318 L416 206" fill="none" stroke="#d9c7a8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M100 404 L210 300 M412 404 L302 300" fill="none" stroke="#e8dcc6" stroke-width="8" stroke-linecap="round"/>
+  <!-- ほしの シール -->
+  <polygon points="256,262 271,295 307,298 280,321 288,356 256,338 224,356 232,321 205,298 241,295" fill="#ffc93c" stroke="#c9921a" stroke-width="6" stroke-linejoin="round"/>
+  <!-- サンタの ぼうし -->
+  <g transform="rotate(-18 150 180)">
+    <path d="M86 196 C110 120 170 84 236 104 C210 130 196 160 196 196 Z" fill="#e63946" stroke="#8a1520" stroke-width="5"/>
+    <rect x="70" y="186" width="146" height="34" rx="17" fill="#ffffff" stroke="#e2e2e2" stroke-width="3"/>
+    <circle cx="240" cy="104" r="20" fill="#ffffff" stroke="#e2e2e2" stroke-width="3"/>
+  </g>
+  <!-- きんきゅう！マーク -->
+  <circle cx="398" cy="168" r="56" fill="#ffc93c" stroke="#ffffff" stroke-width="10"/>
+  <rect x="387" y="130" width="22" height="50" rx="11" fill="#c41f2e"/>
+  <circle cx="398" cy="200" r="12" fill="#c41f2e"/>
+</svg>

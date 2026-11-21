@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f2350">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>サンタからの きんきゅうミッション</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <canvas id="snow" aria-hidden="true"></canvas>
+
+  <header id="hud">
+    <!-- 左上：管理画面（3秒長押し）＋ 右下と同時押しで早送り -->
+    <div id="logo" class="logo" aria-label="logo">🎄</div>
+    <div id="keys" class="keys hidden">
+      <span class="keyslot" data-i="0">🔒</span>
+      <span class="keyslot" data-i="1">🔒</span>
+      <span class="keyslot" data-i="2">🔒</span>
+    </div>
+  </header>
+
+  <main id="stage"></main>
+
+  <!-- 右下の透明エリア（左上ロゴと同時に2秒長押しで早送り／強制クリア） -->
+  <div id="corner-br" class="corner-br" aria-hidden="true"></div>
+
+  <div id="overlay"></div>
+  <div id="admin-root"></div>
+  <div id="fx-layer" aria-hidden="true"></div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
