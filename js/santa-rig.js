@@ -7,34 +7,47 @@
 // L = 画面の左がわ（サンタの右手） / R = 画面の右がわ
 export const POSES = {
   idle:       { y: 0,   lean: 0,   head: 0,   uaL: 18,  faL: -10, uaR: -18, faR: 10,  thL: 6,   shL: 0,    thR: -6,  shR: 0,   face: "smile" },
-  // がにまた ばんざい
-  banzai:     { y: 16,  lean: 0,   head: 0,   uaL: 140, faL: -28, uaR: -140, faR: 28,  thL: 58,  shL: -58,  thR: -58, shR: 58,  face: "open" },
-  // あたまの うえで パチパチ（つまさきだち）
-  pachi:      { y: -8,  lean: 0,   head: 0,   uaL: 160, faL: 42,  uaR: -160, faR: -42, thL: 4,   shL: 0,    thR: -4,  shR: 0,   face: "laugh" },
-  // ディスコ（みぎうえを ゆびさす）
-  disco:      { y: 0,   lean: -10, head: -12, uaL: 35,  faL: -115, uaR: -140, faR: -5, thL: 14,  shL: 0,    thR: -32, shR: 28,  face: "wink" },
-  // フラミンゴ（かたあしだち）
-  flamingo:   { y: -6,  lean: 4,   head: 8,   uaL: 100, faL: -10, uaR: -100, faR: 10,  thL: 2,   shL: 0,    thR: -95, shR: 110, face: "open" },
-  // ホッホッホー（こしに て）
-  hohoho:     { y: 0,   lean: 0,   head: -6,  uaL: 48,  faL: -120, uaR: -48, faR: 120, thL: 16,  shL: 0,    thR: -16, shR: 0,   face: "laugh" },
-  // ケンケン（かたあしジャンプで てを ふる）
-  kenken:     { y: -26, lean: 8,   head: 10,  uaL: 150, faL: -30, uaR: -40,  faR: -40, thL: 4,   shL: 10,   thR: -70, shR: 100, face: "open" },
-  // ロボット
-  robot:      { y: 0,   lean: 0,   head: 0,   uaL: 90,  faL: 90,  uaR: -90,  faR: 90,  thL: 10,  shL: 0,    thR: -10, shR: 0,   face: "robot" },
-  // ゆきだるま（ちいさく しゃがむ）
-  yukidaruma: { y: 44,  lean: 0,   head: 0,   uaL: 60,  faL: -110, uaR: -60, faR: 110, thL: 80,  shL: -150, thR: -80, shR: 150, face: "squint" },
+  // ばんざい（つまさきで せのび、りょうてを まっすぐ うえ）
+  banzai:     { y: -14, lean: 0,   head: 0,   uaL: 172, faL: 0,   uaR: -172, faR: 0,   thL: 3,   shL: 0,    thR: -3,  shR: 0,   face: "open" },
   // ほし（だいのじ ジャンプ）
-  hoshi:      { y: -34, lean: 0,   head: 0,   uaL: 128, faL: 0,   uaR: -128, faR: 0,   thL: 34,  shL: 0,    thR: -34, shR: 0,   face: "open" },
+  hoshi:      { y: -46, lean: 0,   head: 0,   uaL: 125, faL: 0,   uaR: -125, faR: 0,   thL: 38,  shL: 0,    thR: -38, shR: 0,   face: "open" },
+  // フラミンゴ（かたあし だち、りょうて よこ）
+  flamingo:   { y: -8,  lean: 6,   head: 10,  uaL: 92,  faL: 0,   uaR: -92,  faR: 0,   thL: 2,   shL: 0,    thR: -100, shR: 120, face: "open" },
+  // ディスコ（かたて ななめうえ、かたて こし）
+  disco:      { y: 0,   lean: -14, head: -14, uaL: 40,  faL: -120, uaR: -145, faR: -5, thL: 18,  shL: 0,    thR: -40, shR: 36,  face: "wink" },
+  // ロボット（ひじ 90ど）
+  robot:      { y: 0,   lean: 0,   head: 0,   uaL: 90,  faL: 90,  uaR: -90,  faR: 90,  thL: 10,  shL: 0,    thR: -10, shR: 0,   face: "robot" },
+  // ホッホッホー（がにまたで こしに て）
+  hohoho:     { y: 12,  lean: 0,   head: -8,  uaL: 50,  faL: -120, uaR: -50, faR: 120, thL: 42,  shL: -42,  thR: -42, shR: 42,  face: "laugh" },
+  // ゆきだるま（ちいさく しゃがむ）
+  yukidaruma: { y: 46,  lean: 0,   head: 0,   uaL: 60,  faL: -110, uaR: -60, faR: 110, thL: 80,  shL: -150, thR: -80, shR: 150, face: "squint" },
   // トナカイの つの
   tonakai:    { y: 0,   lean: 0,   head: 0,   uaL: 150, faL: 75,  uaR: -150, faR: -75, thL: 10,  shL: 0,    thR: -10, shR: 0,   face: "smile", antlers: true },
+  // あたまの うえで パチパチ
+  pachi:      { y: -8,  lean: 0,   head: 0,   uaL: 160, faL: 42,  uaR: -160, faR: -42, thL: 4,   shL: 0,    thR: -4,  shR: 0,   face: "laugh" },
   // ハ…ハ…（くしゃみの まえ）
   haa:        { y: -6,  lean: 0,   head: -14, uaL: 24,  faL: -20, uaR: -24, faR: 20,   thL: 6,   shL: 0,    thR: -6,  shR: 0,   face: "haa" },
   // ハックション！
   sneeze:     { y: 10,  lean: 0,   head: 16,  uaL: 60,  faL: -100, uaR: -60, faR: 100, thL: 16,  shL: -10,  thR: -16, shR: 10,  face: "sneeze" }
 };
 
+// ポーズごとの 大きな え と いろ（とおくからでも ちがいが わかるように）
+export const POSE_LOOK = {
+  banzai:     { icon: "🙌", color: "#ffc93c" },
+  hoshi:      { icon: "⭐", color: "#4cc9f0" },
+  flamingo:   { icon: "🦩", color: "#ff8fb1" },
+  disco:      { icon: "🕺", color: "#b36bff" },
+  robot:      { icon: "🤖", color: "#9aa7b5" },
+  hohoho:     { icon: "😆", color: "#ff6b5a" },
+  yukidaruma: { icon: "☃️", color: "#e8f6ff" },
+  tonakai:    { icon: "🦌", color: "#c98a4b" },
+  pachi:      { icon: "👏", color: "#ffd86b" },
+  haa:        { icon: "😮", color: "#bfe6ff" },
+  sneeze:     { icon: "🤧", color: "#bfe6ff" }
+};
+
 export const POSE_NAMES = {
-  banzai: "がにまた ばんざい！", disco: "ディスコ！", flamingo: "フラミンゴ！", hohoho: "ホッホッホー！",
+  banzai: "ばんざい！", disco: "ディスコ！", flamingo: "フラミンゴ！", hohoho: "ホッホッホー！",
   kenken: "ケンケン！", robot: "ロボット！", pachi: "パチパチ！", yukidaruma: "ゆきだるま…",
   hoshi: "ほし！", tonakai: "トナカイ！", haa: "ハ…", sneeze: "ハックション！", idle: ""
 };
@@ -149,7 +162,7 @@ export class SantaRig {
       let bob = 0;
       if (this.bobT >= 0) {
         const b = (now - this.bobT) / 220;
-        if (b < 1) bob = Math.sin(b * Math.PI) * 7; else this.bobT = -1;
+        if (b < 1) bob = Math.sin(b * Math.PI) * (this.bobAmp || 7); else this.bobT = -1;
       }
       this.render(this.cur, bob);
       requestAnimationFrame(loop);
@@ -169,7 +182,9 @@ export class SantaRig {
     this.name = name;
   }
 
-  bob() { if (this.name === "idle" || !this.name) this.bobT = performance.now(); }
+  bob() { if (this.name === "idle" || !this.name) { this.bobAmp = 7; this.bobT = performance.now(); } }
+  // ポーズを きめた しゅんかんの おおきな ピョン
+  hop() { this.bobAmp = 16; this.bobT = performance.now(); }
 
   setFace(face) {
     const map = {

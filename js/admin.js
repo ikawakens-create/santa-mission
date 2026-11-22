@@ -154,7 +154,7 @@ async function openPanel() {
       <section class="a-sec">
         <h3>4. 現在のステージを強制クリア</h3>
         <p class="a-note">本番中は「左上ロゴ＋右下の角を同時に2秒長押し」でも同じことができます。<br>
-        まねまねポーズでは、ゲームを飛ばして「ベストポーズ写真館」に進みます。</p>
+        まねまねポーズでは、ゲームを飛ばしてケーキ完成の場面に進みます。</p>
         <button class="a-btn a-primary" id="aSkip">強制クリア</button>
       </section>
 

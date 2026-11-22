@@ -4,7 +4,7 @@
 import { CONFIG } from "../config.js";
 import * as store from "./storage.js";
 import { sfx, unlockAudio, getCtx } from "./audio.js";
-import { SantaRig, POSE_NAMES } from "./santa-rig.js";
+import { SantaRig, POSE_NAMES, POSE_LOOK } from "./santa-rig.js";
 import { compileSet, createSynth, grooveBar, cakeSVG, DECO_COUNT } from "./posegame.js";
 import { startCamera, stopCamera } from "./camera.js";
 import { initAdmin } from "./admin.js";
@@ -73,7 +73,24 @@ function goTo(n) {
   stageEl.innerHTML = "";
   stageEl.scrollTop = 0;
   const screen = SCREENS[state.stage];
-  const res = screen(stageEl) || {};
+  let res = {};
+  try {
+    res = screen(stageEl) || {};
+  } catch (e) {
+    // 古い ファイルが まざった ときなど：まっしろに しないで よみこみなおしボタンを だす
+    console.error(e);
+    document.body.classList.remove("in-call");
+    stageEl.innerHTML = `
+      <section class="screen">
+        <div class="resume-card">
+          <div class="resume-emoji">🎅</div>
+          <div>あれれ？ がめんが うまく ひらけなかったよ</div>
+          <button class="btn btn-green btn-xl" id="reloadBtn">もういちど よみこむ</button>
+          <div class="papa-note">（パパへ）${esc(e && e.message)}</div>
+        </div>
+      </section>`;
+    $("#reloadBtn", stageEl).addEventListener("click", () => location.reload());
+  }
   current.cleanup = res.cleanup || null;
   current.skip = res.skip || null;
   current.cornerTap = res.cornerTap || null;
@@ -89,9 +106,11 @@ function showUnlock(n, next) {
   overlayEl.innerHTML = `
     <div class="unlock-card">
       <div class="unlock-lock">🔒</div>
-      <div class="unlock-text hidden">${n}つめの カギが<br><b>あいた！</b></div>
-      <div class="unlock-count hidden">カギ ${n} / 3</div>
-      <button class="btn btn-gold hidden" id="unlockNext">${n < 3 ? "つぎへ すすむ！" : "さいごの ページへ！"}</button>
+      <div class="unlock-side">
+        <div class="unlock-text hidden">${n}つめの カギが<br><b>あいた！</b></div>
+        <div class="unlock-count hidden">カギ ${n} / 3</div>
+        <button class="btn btn-gold hidden" id="unlockNext">${n < 3 ? "つぎへ すすむ！" : "さいごの ページへ！"}</button>
+      </div>
     </div>`;
   const lock = $(".unlock-lock", overlayEl);
   sfx.pop();
@@ -120,16 +139,20 @@ function showUnlock(n, next) {
 // =============================================================
 function screen0(el) {
   el.innerHTML = `
-    <section class="screen s0">
-      <div class="s0-title">
-        <div class="s0-sub">サンタからの</div>
-        <div class="s0-main">きんきゅう<br>ミッション</div>
+    <section class="screen s0 land">
+      <div class="col col-l">
+        <div class="s0-title">
+          <div class="s0-sub">サンタからの</div>
+          <div class="s0-main">きんきゅう<br>ミッション</div>
+        </div>
+        <div class="s0-deco">🎁 ⭐ 🎅 ⭐ 🎁</div>
       </div>
-      <button class="touch-me" id="touchMe">
-        <span class="touch-emoji">📩</span>
-        <span class="touch-label">スマホを<br>タッチしてね！</span>
-      </button>
-      <div class="s0-deco">🎁 ⭐ 🎅 ⭐ 🎁</div>
+      <div class="col col-r">
+        <button class="touch-me" id="touchMe">
+          <span class="touch-emoji">📩</span>
+          <span class="touch-label">スマホを<br>タッチしてね！</span>
+        </button>
+      </div>
     </section>`;
   const btn = $("#touchMe", el);
   let done = false;
@@ -145,6 +168,8 @@ async function startSession() {
   state.started = true;
   await unlockAudio();
   requestWakeLock();
+  // よこむきに こてい（ホーム画面から ひらいた ときは manifest で こてい される）
+  try { await screen.orientation?.lock?.("landscape"); } catch (e) { /* noop */ }
 }
 
 // =============================================================
@@ -164,13 +189,17 @@ function screen1(el) {
       </div>
       <div class="letter hidden" id="letter">
         <div class="letter-santa">🎅</div>
-        <div class="letter-paper">
-          <div class="letter-from">サンタより</div>
-          <div class="letter-body" id="letterBody"></div>
-          <div class="letter-locks hidden" id="letterLocks"><span>🔒</span><span>🔒</span><span>🔒</span></div>
+        <div class="letter-side">
+          <div class="letter-paper">
+            <div class="letter-from">サンタより</div>
+            <div class="letter-body" id="letterBody"></div>
+          </div>
+          <div class="letter-foot">
+            <div class="tap-note" id="tapNote">タッチすると はやく よめるよ</div>
+            <div class="letter-locks hidden" id="letterLocks"><span>🔒</span><span>🔒</span><span>🔒</span></div>
+            <button class="btn btn-green btn-pulse hidden" id="startMission">ミッション スタート！</button>
+          </div>
         </div>
-        <div class="tap-note" id="tapNote">タッチすると はやく よめるよ</div>
-        <button class="btn btn-green btn-pulse hidden" id="startMission">ミッション スタート！</button>
       </div>
     </section>`;
 
@@ -235,9 +264,10 @@ function screen2(el) {
   const hints = CONFIG.key1.hints;
   const code = String(CONFIG.key1.passcode);
   el.innerHTML = `
-    <section class="screen s2">
+    <section class="screen s2 land">
+      <div class="col col-l">
       <div class="mission-head"><span class="mh-num">1</span><span>1つめの カギ</span></div>
-      <p class="lead">5にんの「すうじ」を さがして、<br>じぶんの ばんで いれてね！</p>
+      <p class="lead">5にんの「すうじ」を さがして、じぶんの ばんで いれてね！</p>
       <div class="hints">
         ${hints.map((h, i) => `
           <div class="hint c-${KID_COLORS[i]}">
@@ -249,6 +279,8 @@ function screen2(el) {
         <div class="eh-title">🎅 サンタからの ついかヒント！</div>
         <div>${nl2br(CONFIG.key1.extraHintAfter3Misses)}</div>
       </div>
+      </div>
+      <div class="col col-r">
       <div class="code-boxes" id="boxes">
         ${hints.map((h, i) => `
           <div class="cbox c-${KID_COLORS[i]}" data-i="${i}">
@@ -258,10 +290,10 @@ function screen2(el) {
       </div>
       <div class="turn" id="turn"></div>
       <div class="keypad" id="keypad">
-        ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="kp kp-n" data-n="${n}">${n}</button>`).join("")}
+        ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(n => `<button class="kp kp-n" data-n="${n}">${n}</button>`).join("")}
         <button class="kp kp-del" data-act="del">けす</button>
-        <button class="kp kp-n" data-n="0">0</button>
         <button class="kp kp-ok" data-act="ok">けってい</button>
+      </div>
       </div>
       <div class="toast hidden" id="toast"></div>
     </section>`;
@@ -375,18 +407,22 @@ function silhouetteHTML(rows) {
 function screen3(el) {
   const sil = getSilhouette();
   el.innerHTML = `
-    <section class="screen s3">
-      <div class="mission-head"><span class="mh-num">2</span><span>2つめの カギ</span></div>
-      <div class="big-title"><span class="grow">とっても おおきな</span><br>つみきを つくろう！</div>
-      <div class="hint-card">
-        <span class="hc-icon">📦</span>
-        <span>${nl2br(CONFIG.key2.boxHint)}</span>
+    <section class="screen s3 land">
+      <div class="col col-l">
+        <div class="mission-head"><span class="mh-num">2</span><span>2つめの カギ</span></div>
+        <div class="big-title"><span class="grow">とっても おおきな</span><br>つみきを つくろう！</div>
+        <div class="hint-card">
+          <span class="hc-icon">📦</span>
+          <span>${nl2br(CONFIG.key2.boxHint)}</span>
+        </div>
+        <button class="btn btn-green btn-xl btn-pulse" id="done">できた！</button>
       </div>
-      <div class="sil-frame">
-        <div class="sil-label">⭐ この かたちを みんなで つくってね ⭐</div>
-        ${silhouetteHTML(sil.rows)}
+      <div class="col col-r">
+        <div class="sil-frame">
+          <div class="sil-label">⭐ この かたちを みんなで つくってね ⭐</div>
+          ${silhouetteHTML(sil.rows)}
+        </div>
       </div>
-      <button class="btn btn-green btn-xl btn-pulse" id="done">できた！</button>
 
       <div class="scan hidden" id="scan">
         <video id="camVideo" playsinline muted></video>
@@ -461,19 +497,16 @@ function screen3(el) {
 
 // =============================================================
 //  画面4  サンタからの ビデオでんわ ＆「まねまねポーズ クリスマスケーキ」
+//  （カメラは つかわない。がめん いっぱいに サンタを おおきく）
 // =============================================================
-const COLOR_HEX = { red: "#e63946", green: "#2a9d5c", gold: "#ffc93c", blue: "#4cc9f0", pink: "#ff8fb1" };
 const POSE_PITCH = { banzai: 1, pachi: 1.12, disco: 1.25, flamingo: 0.9, hohoho: 0.8, kenken: 1.18, robot: 1.05, yukidaruma: 0.75, hoshi: 1.33, tonakai: 0.95, haa: 1.1 };
 
 function screen4(el) {
   const G = CONFIG.poseGame;
-  const names = getNames();
-  const kidColor = i => COLOR_HEX[KID_COLORS[i % KID_COLORS.length]];
   el.innerHTML = `
     <section class="screen s4">
       <div class="vcall" id="vcall">
-        <video id="selfie" class="selfie hidden" playsinline muted></video>
-        <div class="vc-bg" id="vcBg"></div>
+        <div class="vc-bg"></div>
 
         <div class="vc-incoming" id="incoming">
           <div class="vc-in-label">📹 ビデオでんわ</div>
@@ -487,33 +520,30 @@ function screen4(el) {
         </div>
 
         <div class="vc-live hidden" id="live">
-          <div class="vc-win" id="vcWin"><span class="vc-win-face">🎅</span><span>サンタ</span><span class="vc-rec">● つうわちゅう</span></div>
-
-          <!-- ゲーム -->
-          <div class="pg hidden" id="pg">
-            <div class="pg-stage" id="pgStage">
-              <div class="pg-beam pg-beam-l" id="beamL"></div>
-              <div class="pg-beam pg-beam-r" id="beamR"></div>
+          <div class="pg" id="pg">
+            <div class="pg-stage call" id="pgStage">
+              <div class="pg-beam pg-beam-l"></div>
+              <div class="pg-beam pg-beam-r"></div>
               <div class="pg-floor"></div>
-              <div class="pg-santa" id="pgSanta"></div>
-              <div class="pg-posename" id="pgPoseName"></div>
+              <div class="pg-phase hidden" id="pgPhase"></div>
               <div class="pg-setlabel" id="pgSetLabel"></div>
               <div class="pg-cake" id="pgCake">${cakeSVG()}</div>
               <div class="pg-gauge"><div class="pg-gauge-fill" id="pgGauge"></div></div>
-              <div class="pg-banner hidden" id="pgBanner"></div>
+              <div class="pg-posebg" id="pgPoseBg"><span id="pgPoseIcon"></span></div>
+              <div class="pg-santa" id="pgSanta"></div>
+              <div class="pg-posename" id="pgPoseName"></div>
               <div class="pg-count hidden" id="pgCount"></div>
               <div class="pg-tame hidden" id="pgTame">ためて〜〜…</div>
+              <div class="pg-fake hidden" id="pgFake"></div>
+              <div class="pg-flash" id="pgFlash"></div>
+              <div class="pg-done hidden" id="pgDone">🎂 ケーキ かんせい！<br><b>メリークリスマス！</b></div>
             </div>
-            <div class="pg-rhythm" id="pgRhythm">
-              <div class="pg-turn" id="pgTurn"></div>
+            <div class="pg-rhythm hidden" id="pgRhythm">
               <div class="pg-track" id="pgTrack"></div>
             </div>
-            <div class="pg-cam" id="pgCam">
-              <div class="pg-camlabel hidden" id="pgCamLabel"></div>
-              <div class="pg-flash" id="pgFlash"></div>
-              <div class="pg-fake hidden" id="pgFake"></div>
-            </div>
           </div>
+
+          <div class="vc-win" id="vcWin"><span class="vc-win-face">🎅</span><span>サンタ</span><span class="vc-rec">● つうわちゅう</span></div>
 
           <div class="vc-talk hidden" id="talkBox">
             <div class="vc-bubble" id="bubble"></div>
@@ -522,58 +552,39 @@ function screen4(el) {
 
           <div class="vc-card hidden" id="rules">
             <div class="rules-title">あそびかた</div>
-            <div class="rule"><span class="rn">1</span><span class="ri">🎅</span><span>サンタが ポーズを<br>みせるよ！ よく みてね</span></div>
-            <div class="rule"><span class="rn">2</span><span class="ri">📣</span><span><b>なまえを よばれた こ</b>が<br>おなじ リズムで まねっこ！</span></div>
-            <div class="rule"><span class="rn">3</span><span class="ri">🌈</span><span><b>「みんな！」</b>の ときは<br>5にん ぜんいんで！</span></div>
+            <div class="rules-row">
+            <div class="rule"><span class="rn">1</span><span class="ri">👀</span><span>サンタが ポーズを<br>みせるよ！ よく みてね</span></div>
+            <div class="rule"><span class="rn">2</span><span class="ri">🙌</span><span>がめんが ひかって<br><b>「みんなの ばん！」</b>に なったら<br>5にん いっしょに まねっこ！</span></div>
+            </div>
             <div class="rules-note">ポーズを きめるたびに<br>🎂 ケーキが できあがっていくよ！</div>
-            <button class="btn btn-gold" id="rulesOk">わかった！</button>
-          </div>
-
-          <div class="vc-card hidden" id="setup">
-            <div class="rules-title">じゅんび しよう！</div>
-            <div class="setup-emoji">📱 ➡ 👧👧👧👧👧</div>
-            <div class="setup-text">スマホを たてかけて、<br>5にん みんなが がめんに<br>うつるように ならんでね！</div>
-            <button class="btn btn-red btn-xl btn-pulse" id="go">じゅんび OK！<br>スタート！</button>
-          </div>
-
-          <div class="vc-card gallery hidden" id="gallery">
-            <div class="rules-title">📸 ベストポーズ しゃしんかん</div>
-            <div class="gal-grid" id="galGrid"></div>
-            <button class="btn btn-gold" id="galNext">つぎへ ▶</button>
+            <button class="btn btn-red btn-xl btn-pulse" id="go">わかった！<br>スタート！</button>
           </div>
         </div>
       </div>
     </section>`;
 
-  const video = $("#selfie", el);
   document.body.classList.add("in-call");
   let alive = true;
   let ringTimer = null, raf = null, synth = null, rig = null;
-  let phase = "ring";
-  let rot = 0, decoCount = 0;
-  const shots = {};
+  let phase = "ring", decoCount = 0;
   const show = (id, on = true) => $("#" + id, el).classList.toggle("hidden", !on);
   const later = (fn, ms) => setTimeout(() => alive && fn(), ms);
+  const stage = $("#pgStage", el);
 
   // ---- ちゃくしん ----
   const ring = () => { sfx.ring(); vibrate([200, 100, 200]); };
   ring();
   ringTimer = setInterval(ring, 1800);
   $("#decline", el).addEventListener("click", () => { sfx.wrong(); show("declineMsg"); shake($("#incoming", el)); });
-  $("#answer", el).addEventListener("click", async () => {
+  $("#answer", el).addEventListener("click", () => {
     clearInterval(ringTimer);
     sfx.correct();
     phase = "talk";
     show("incoming", false);
     show("live");
-    try {
-      await startCamera(video, "user");
-      if (!alive) { stopCamera(video); return; }
-      video.classList.remove("hidden");
-    } catch (e) {
-      $("#vcBg", el).classList.add("fallback");
-    }
-    talk(G.talk, () => { show("talkBox", false); show("rules"); sfx.pikon(); });
+    rig = new SantaRig($("#pgSanta", el));
+    rig.pose("hohoho");
+    talk(G.talk, () => { show("rules"); sfx.pikon(); rig.pose("idle"); });
   });
 
   // ---- サンタの せりふ ----
@@ -582,102 +593,89 @@ function screen4(el) {
     const bubble = $("#bubble", el);
     const btn = $("#talkNext", el);
     show("talkBox");
+    show("vcWin");
     const say = () => {
       bubble.innerHTML = nl2br(lines[i].replace(/\{song\}/g, CONFIG.key3.songTitle));
       bubble.classList.remove("pop-in"); void bubble.offsetWidth; bubble.classList.add("pop-in");
       [0, 120, 240].forEach(d => later(() => sfx.key(Math.floor(Math.random() * 5)), d));
+      if (rig) { rig.pose(i % 2 ? "pachi" : "hohoho"); }
       btn.innerHTML = i === lines.length - 1 ? lastLabel : "つぎへ ▶";
     };
     btn.onclick = () => {
       sfx.pop();
       i++;
-      if (i < lines.length) say(); else { btn.onclick = null; show("talkBox", false); done(); }
+      if (i < lines.length) say(); else { btn.onclick = null; show("talkBox", false); show("vcWin", false); done(); }
     };
     say();
   }
 
-  $("#rulesOk", el).addEventListener("click", () => { sfx.pop(); show("rules", false); show("setup"); });
   $("#go", el).addEventListener("click", () => {
     sfx.correct();
-    show("setup", false);
+    show("rules", false);
     startGame();
   });
 
-  // ---- ゲーム ----
-  function whoText(who) {
-    if (!who || who.type === "all" || who.type === "fake") return "みんな！";
-    if (who.type === "relay") return "リレー！";
-    return who.ids.map(i => names[i]).join(" と ") + "！";
+  // ---- ポーズの みせかた ----
+  function showPose(pose, strong) {
+    rig.pose(pose);
+    rig.hop();
+    const look = POSE_LOOK[pose] || { icon: "", color: "#fff" };
+    const bg = $("#pgPoseBg", el);
+    bg.style.setProperty("--pc", look.color);
+    $("#pgPoseIcon", el).textContent = look.icon;
+    bg.classList.remove("show", "strong"); void bg.offsetWidth;
+    bg.classList.add("show");
+    if (strong) bg.classList.add("strong");
+    const name = $("#pgPoseName", el);
+    name.textContent = POSE_NAMES[pose] || "";
+    name.style.setProperty("--pc", look.color);
+    name.classList.remove("pop-in"); void name.offsetWidth; name.classList.add("pop-in");
   }
-  function whoColors(who) {
-    if (!who || who.type === "all" || who.type === "fake" || who.type === "relay") return null;
-    return who.ids.map(kidColor);
+  function clearPose() {
+    rig.pose("idle");
+    $("#pgPoseBg", el).classList.remove("show", "strong");
+    $("#pgPoseName", el).textContent = "";
   }
-  function setBanner(who, mode) {
-    const b = $("#pgBanner", el);
-    const cols = whoColors(who);
-    b.className = "pg-banner pop-in" + (cols ? "" : " rainbow");
-    b.style.background = cols ? (cols.length > 1 ? `linear-gradient(90deg, ${cols.join(",")})` : cols[0]) : "";
-    b.innerHTML = mode === "call"
-      ? `<small>つぎは…</small>${esc(whoText(who))}`
-      : `${esc(whoText(who))}<small> の ばん！</small>`;
-    // スポットライトの いろ
-    const c = cols ? cols[0] : "#fff6c9";
-    const c2 = cols ? cols[cols.length - 1] : "#fff6c9";
-    $("#beamL", el).style.setProperty("--beam", c);
-    $("#beamR", el).style.setProperty("--beam", c2);
-  }
-  function setCamLabel(who) {
-    const l = $("#pgCamLabel", el);
-    const cols = whoColors(who);
-    l.classList.remove("hidden");
-    l.className = "pg-camlabel pop-in" + (cols ? "" : " rainbow");
-    l.style.background = cols ? (cols.length > 1 ? `linear-gradient(90deg, ${cols.join(",")})` : cols[0]) : "";
-    l.innerHTML = `📸 ${esc(whoText(who))}`;
-    $("#pgCam", el).style.setProperty("--cam", cols ? cols[0] : "#ffffff");
+  function setPhase(mode) {
+    stage.classList.toggle("call", mode === "call");
+    stage.classList.toggle("resp", mode === "resp");
+    const ph = $("#pgPhase", el);
+    show("pgPhase");
+    ph.className = `pg-phase ${mode} pop-in`;
+    ph.innerHTML = mode === "call" ? "👀 サンタを みてね！" : "🙌 みんなの ばん！";
   }
 
-  let seg = null; // { start, len, spb, mode }
-  function drawTrack(hits, len, who, mode) {
+  let seg = null;
+  function drawTrack(hits, len, mode) {
     const track = $("#pgTrack", el);
-    const cols = whoColors(who);
-    const col = mode === "call" ? "#ff5a67" : (cols ? cols[0] : "#ffc93c");
     let html = "";
     for (let b = 0; b < len; b++) html += `<span class="pg-tick ${b % 4 === 0 ? "bar" : ""}" style="left:${(b / len) * 100}%"></span>`;
     hits.forEach((h, i) => {
-      const c = who && who.type === "relay" && mode === "resp" ? kidColor(who.ids[i]) : col;
-      html += `<span class="pg-dot" data-i="${i}" style="left:${(h.pos / len) * 100}%;--dot:${c}"></span>`;
+      const look = POSE_LOOK[h.pose] || { icon: "★", color: "#fff" };
+      const icon = mode === "call" ? "？" : look.icon;
+      html += `<span class="pg-dot ${mode}" data-i="${i}" style="left:${(h.pos / len) * 100}%;--dot:${look.color}"><i>${icon}</i></span>`;
     });
     html += `<span class="pg-playhead" id="pgPlayhead"></span>`;
     track.innerHTML = html;
-    track.className = `pg-track ${mode}`;
-    $("#pgTurn", el).innerHTML = mode === "call"
-      ? `👀 <b>サンタ</b>を よく みてね！`
-      : `✨ <b>${esc(whoText(who).replace(/！$/, ""))}</b>の ばん！`;
     $("#pgRhythm", el).className = `pg-rhythm ${mode}`;
   }
-  function pulseDot(i) {
+  function revealDot(i, pose) {
     const d = el.querySelector(`.pg-dot[data-i="${i}"]`);
-    if (d) { d.classList.remove("hit"); void d.offsetWidth; d.classList.add("hit"); }
+    if (!d) return;
+    const look = POSE_LOOK[pose] || { icon: "★" };
+    d.querySelector("i").textContent = look.icon;
+    d.classList.remove("hit"); void d.offsetWidth; d.classList.add("hit");
   }
   function flash() {
     const f = $("#pgFlash", el);
     f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
   }
-  const snapCanvas = document.createElement("canvas");
-  function snap(key) {
-    if (!video.videoWidth) return;
-    const w = 360, h = Math.round(w * video.videoHeight / video.videoWidth);
-    snapCanvas.width = w; snapCanvas.height = h;
-    const g = snapCanvas.getContext("2d");
-    g.setTransform(-1, 0, 0, 1, w, 0);
-    g.drawImage(video, 0, 0, w, h);
-    try { shots[key] = snapCanvas.toDataURL("image/jpeg", 0.75); } catch (e) { /* noop */ }
-  }
-  function addDeco() {
-    const d = el.querySelector(`.deco[data-i="${decoCount}"]`);
-    if (d) d.classList.add("on");
-    decoCount++;
+  function addDeco(n = 2) {
+    for (let k = 0; k < n; k++) {
+      const d = el.querySelector(`.deco[data-i="${decoCount}"]`);
+      if (d) d.classList.add("on");
+      decoCount++;
+    }
     $("#pgGauge", el).style.height = `${Math.min(100, (decoCount / DECO_COUNT) * 100)}%`;
     const cake = $("#pgCake", el);
     cake.classList.remove("boing"); void cake.offsetWidth; cake.classList.add("boing");
@@ -686,22 +684,17 @@ function screen4(el) {
 
   function startGame() {
     phase = "game";
-    show("pg");
-    $("#vcWin", el).classList.add("hidden");
-    rig = new SantaRig($("#pgSanta", el));
     synth = createSynth();
     runSet(0, () => {
-      rig.pose("hohoho");
+      show("pgRhythm", false); show("pgPhase", false);
       synth.tada(getCtx().currentTime + 0.05);
-      $("#pgTurn", el).innerHTML = "🎉 ぜんはん クリア！";
-      later(() => talk(G.halfTalk, () => runSet(1, finale), "スタート！"), 900);
+      later(() => talk(G.halfTalk, () => runSet(1, finale), "スタート！"), 700);
     });
   }
 
   function runSet(si, onDone) {
     const set = G.sets[si];
-    const comp = compileSet(set, rot, names.length);
-    rot = comp.rot;
+    const comp = compileSet(set, 0, 5);
     const c = getCtx();
     const spb = 60 / set.bpm;
     const lat = Math.min(0.2, (c.outputLatency || 0) + (c.baseLatency || 0) || 0.04);
@@ -710,9 +703,9 @@ function screen4(el) {
     const items = comp.items.map(it => ({ ...it, t: t0 + it.beat * spb, a: false, v: false }));
     let barSched = 0, lastBeat = -1;
     $("#pgSetLabel", el).innerHTML = `${esc(set.title)}<small>${esc(set.subtitle)}</small>`;
-    show("pgCamLabel", false);
     $("#pgTrack", el).innerHTML = "";
-    $("#pgTurn", el).innerHTML = "♪ はじまるよ〜！";
+    show("pgRhythm");
+    clearPose();
 
     const audio = (it, t) => {
       if (it.kind === "count") synth.count(t, it.n === 3);
@@ -730,59 +723,40 @@ function screen4(el) {
         }
         case "callStart":
           show("pgCount", false); show("pgFake", false); show("pgTame", false);
-          rig.pose("idle");
-          setBanner(it.who, "call");
-          drawTrack(it.hits, it.len, it.who, "call");
+          clearPose();
+          setPhase("call");
+          drawTrack(it.hits, it.len, "call");
           seg = { start: it.t, len: it.len };
-          $("#pgPoseName", el).textContent = "";
-          if (it.who.type === "relay") setCamLabel({ type: "kids", ids: [it.who.ids[0]] });
-          else setCamLabel(it.who);
           break;
         case "callHit":
-          rig.pose(it.pose);
-          $("#pgPoseName", el).textContent = POSE_NAMES[it.pose] || "";
-          $("#pgPoseName", el).className = "pg-posename pop-in";
-          pulseDot(it.i);
+          showPose(it.pose, false);
+          revealDot(it.i, it.pose);
           break;
         case "tame": show("pgTame"); break;
         case "respStart":
-          rig.pose("idle");
-          setBanner(it.who.type === "fake" ? { type: "all" } : it.who, "resp");
-          drawTrack(it.hits, it.len, it.who, "resp");
+          clearPose();
+          setPhase("resp");
+          drawTrack(it.hits, it.len, "resp");
           seg = { start: it.t, len: it.len };
           show("pgTame", false);
-          if (it.who.type === "relay") setCamLabel({ type: "kids", ids: [it.who.ids[0]] });
           break;
         case "respHit":
-          rig.pose(it.pose);
-          $("#pgPoseName", el).textContent = POSE_NAMES[it.pose] || "";
-          $("#pgPoseName", el).className = "pg-posename pop-in";
-          pulseDot(it.i);
+          showPose(it.pose, true);
+          revealDot(it.i, it.pose);
           flash();
           vibrate(20);
-          if (it.who.type === "relay") {
-            const nextId = it.who.ids[it.i + 1];
-            snap(it.who.ids[it.i]);
-            if (nextId !== undefined) setCamLabel({ type: "kids", ids: [nextId] });
-          } else if (it.last && it.target.type === "kids") {
-            it.target.ids.forEach(id => { if (it.target.ids.length === 1 || !shots[id]) snap(id); });
-          } else if (it.last && it.target.type === "all") {
-            snap("all");
-          }
-          { const r = $("#pgCake", el).getBoundingClientRect(); confetti.burst(r.left + r.width / 2, r.top + r.height / 2, 14); }
+          { const r = $("#pgCake", el).getBoundingClientRect(); confetti.burst(r.left + r.width / 2, r.top + r.height / 2, 12); }
           break;
         case "fakeResp": {
           const f = $("#pgFake", el);
           f.innerHTML = "ハックション〜！<br><b>まねしちゃ ダメ〜！</b><br><small>ひっかかった こは いるかな？</small>";
-          f.classList.remove("hidden");
           f.className = "pg-fake pop-in";
           sfx.moved();
           break;
         }
         case "phraseEnd":
-          rig.pose("idle");
-          $("#pgPoseName", el).textContent = "";
-          if (it.who.type !== "fake") addDeco();
+          clearPose();
+          if (it.who.type !== "fake") addDeco(2);
           break;
       }
     };
@@ -815,56 +789,28 @@ function screen4(el) {
     raf = requestAnimationFrame(loop);
   }
 
-  // ---- フィナーレ：なまえを よぶ → しゃしんかん ----
+  // ---- ケーキ かんせい ----
   function finale() {
     phase = "finale";
-    show("pgCount", false); show("pgTame", false); show("pgFake", false);
-    // のこりの かざりを ぜんぶ のせる
-    while (decoCount < DECO_COUNT) addDeco();
+    stopGame();
+    show("pgCount", false); show("pgTame", false); show("pgFake", false); show("pgRhythm", false); show("pgPhase", false);
+    while (decoCount < DECO_COUNT) addDeco(1);
     el.querySelector(".cake-cream").classList.add("on");
     $("#pgCake", el).classList.add("done");
-    rig.pose("hoshi");
-    $("#pgPoseName", el).textContent = "";
-    $("#pgTurn", el).innerHTML = "🎂 ケーキ かんせい！";
-    $("#pgTrack", el).innerHTML = "";
+    stage.classList.remove("call", "resp");
+    stage.classList.add("finale");
+    showPose("hoshi", true);
+    show("pgDone");
     sfx.fanfare();
-    confetti.rain(5000);
-    names.forEach((n, i) => later(() => {
-      setBanner({ type: "kids", ids: [i] }, "resp");
-      $("#pgBanner", el).innerHTML = `${esc(n)}<small> ありがとう！</small>`;
-      sfx.key(i + 3);
-      rig.pose(["banzai", "disco", "hohoho", "kenken", "pachi"][i % 5]);
-    }, 1400 + i * 900));
+    confetti.rain(4000);
     later(() => {
-      setBanner({ type: "all" }, "resp");
-      $("#pgBanner", el).innerHTML = "メリークリスマス！";
-      $("#pgBanner", el).classList.add("wide");
-      rig.pose("hoshi");
-      sfx.correct();
-    }, 1400 + names.length * 900);
-    later(showGallery, 2600 + names.length * 900);
+      show("pgDone", false);
+      $("#pgCake", el).classList.remove("done");
+      stage.classList.remove("finale");
+      clearPose();
+      talk(G.clearTalk, () => { sfx.correct(); goTo(5); }, "わかった！<br>うたを うたう！");
+    }, 3200);
   }
-
-  function showGallery() {
-    phase = "gallery";
-    const grid = $("#galGrid", el);
-    grid.innerHTML = names.map((n, i) => `
-      <div class="gal-card" style="--kc:${kidColor(i)}">
-        ${shots[i] ? `<img src="${shots[i]}" alt="">` : `<div class="gal-noimg">🎅</div>`}
-        <div class="gal-name">${esc(n)}</div>
-      </div>`).join("") + (shots.all ? `
-      <div class="gal-card gal-all" style="--kc:#ffc93c"><img src="${shots.all}" alt=""><div class="gal-name">みんなで ポーズ！</div></div>` : "");
-    show("pg", false);
-    show("gallery");
-    sfx.pikon();
-  }
-  $("#galNext", el).addEventListener("click", () => {
-    sfx.pop();
-    show("gallery", false);
-    show("pg", false);
-    $("#vcWin", el).classList.remove("hidden");
-    talk(G.clearTalk, () => { sfx.correct(); goTo(5); }, "わかった！<br>うたを うたう！");
-  });
 
   function stopGame() {
     if (raf) cancelAnimationFrame(raf);
@@ -879,16 +825,13 @@ function screen4(el) {
       clearInterval(ringTimer);
       stopGame();
       if (rig) rig.destroy();
-      stopCamera(video);
     },
     skip: () => {
-      // 早送り：ゲームを とばして しゃしんかんへ
-      if (phase === "gallery" || phase === "finale") return;
+      if (phase === "finale") return;
       clearInterval(ringTimer);
-      stopGame();
-      show("incoming", false); show("rules", false); show("setup", false); show("talkBox", false);
+      show("incoming", false); show("rules", false); show("talkBox", false); show("vcWin", false);
       show("live");
-      if (!rig) { show("pg"); rig = new SantaRig($("#pgSanta", el)); }
+      if (!rig) rig = new SantaRig($("#pgSanta", el));
       finale();
     }
   };
@@ -915,18 +858,22 @@ function treeSVG() {
 
 function screen5(el) {
   el.innerHTML = `
-    <section class="screen s5">
-      <div class="mission-head"><span class="mh-num">3</span><span>3つめの カギ</span></div>
-      <div class="big-title">みんなで<br>クリスマスソングを うたおう！</div>
-      <div class="song-card">🎵「${esc(CONFIG.key3.songTitle)}」🎵</div>
-      <div class="tree-wrap" id="treeWrap">${treeSVG()}<div class="notes" id="notes"></div></div>
-      <div class="gauge">
-        <div class="gauge-label">うたごえパワー <b id="gaugePct">0</b>%</div>
-        <div class="gauge-bar"><div class="gauge-fill" id="gaugeFill"></div></div>
+    <section class="screen s5 land">
+      <div class="col col-l">
+        <div class="tree-wrap" id="treeWrap">${treeSVG()}<div class="notes" id="notes"></div></div>
       </div>
-      <button class="btn btn-red btn-xl btn-pulse" id="sing">うたを はじめる！</button>
-      <p class="sending hidden" id="sending">サンタさんに うたごえを とどけているよ♪</p>
-      <div class="delivered hidden" id="delivered">すてきな うたごえが<br>とどいたよ！</div>
+      <div class="col col-r">
+        <div class="mission-head"><span class="mh-num">3</span><span>3つめの カギ</span></div>
+        <div class="big-title">みんなで クリスマスソングを うたおう！</div>
+        <div class="song-card">🎵「${esc(CONFIG.key3.songTitle)}」🎵</div>
+        <div class="gauge">
+          <div class="gauge-label">うたごえパワー <b id="gaugePct">0</b>%</div>
+          <div class="gauge-bar"><div class="gauge-fill" id="gaugeFill"></div></div>
+        </div>
+        <button class="btn btn-red btn-xl btn-pulse" id="sing">うたを はじめる！</button>
+        <p class="sending hidden" id="sending">サンタさんに うたごえを とどけているよ♪</p>
+        <div class="delivered hidden" id="delivered">すてきな うたごえが とどいたよ！</div>
+      </div>
     </section>`;
 
   const durMs = Math.max(5, Number(CONFIG.key3.gaugeDurationSec) || 90) * 1000;
@@ -999,10 +946,13 @@ function screen5(el) {
 function screen6(el) {
   const img = CONFIG.ending.finalImage ? `<img class="final-img" src="${esc(CONFIG.ending.finalImage)}" alt="">` : "";
   el.innerHTML = `
-    <section class="screen s6">
-      <div class="clear-title">ミッション<br>クリア！</div>
-      <div class="clear-keys"><span>🔑</span><span>🔑</span><span>🔑</span></div>
-      <div class="end-santa">🎅</div>
+    <section class="screen s6 land">
+      <div class="col col-l">
+        <div class="clear-title">ミッション<br>クリア！</div>
+        <div class="clear-keys"><span>🔑</span><span>🔑</span><span>🔑</span></div>
+        <div class="end-santa">🎅</div>
+      </div>
+      <div class="col col-r">
       <div class="end-msg">${nl2br(CONFIG.ending.message)}</div>
       <div class="final-card">
         <div class="final-title">🎁 さいごの ヒント 🎁</div>
@@ -1010,6 +960,7 @@ function screen6(el) {
         ${img}
       </div>
       <p class="guide">がめんを タッチすると かみふぶきが でるよ！</p>
+      </div>
     </section>`;
   sfx.fanfare();
   vibrate([100, 60, 100, 60, 300]);

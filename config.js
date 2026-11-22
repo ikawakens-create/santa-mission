@@ -48,58 +48,45 @@ export const CONFIG = {
   poseGame: {
     // でんわに でた あとの サンタの せりふ
     talk: [
-      "おお！ みんなの かおが よく みえるぞ！\nつみき、かんぺきじゃったな！",
-      "じつは サンタは いま、クリスマスケーキを つくっておるんじゃが… いそがしくて てが たりん！",
-      "サンタの ポーズを まねすると、ケーキが どんどん できあがるぞ。\nてつだっておくれ！"
+      "おお！ みんな！\nつみき、かんぺきじゃったな！",
+      "サンタは いま ケーキづくりで おおいそがし！\nサンタの ポーズを まねして、てつだっておくれ！"
     ],
-    // 1セットめが おわったときの せりふ
+    // ぜんはんが おわったときの せりふ
     halfTalk: [
-      "いいぞ〜！ スポンジが ふっくら やけた！",
-      "つぎは かざりつけじゃ！\nこんどは もっと はやく なるぞ〜！"
+      "いいぞ〜！ スポンジが やけた！\nつぎは かざりつけ。もっと はやく なるぞ〜！"
     ],
     // ケーキが かんせいしたあとの せりふ（{song} は きょくめいに おきかわる）
     clearTalk: [
-      "すばらしい！ みんなの おかげで、さいこうの ケーキが できたぞ！",
-      "では さいごの カギの ひみつを おしえよう。\nさいごの カギを あける まほうは… みんなの うたごえじゃ！",
+      "すばらしい！ さいこうの ケーキが できたぞ！\nさいごの カギを あける まほうは… みんなの うたごえじゃ！",
       "「{song}」を\n5にんで おおきな こえで うたっておくれ！"
     ],
 
     // ---- ふめん ----
-    // who: "all"=みんな / "solo"=1にん / "pair"=2にん / "trio"=3にん / "relay"=1はくごとに つぎの こ / "fake"=ハックション（まねしない）
+    // 1ぎょう＝1フレーズ（サンタの おてほん → みんなの ばん）
+    // who: "all"=みんな / "fake"=ハックション（まねしない）
     // hits: [はく, ポーズ]  はくは 1〜4（bars:2 なら 1〜8）。2.5 のような うらはくも OK
-    // ポーズ: banzai pachi disco flamingo hohoho kenken robot yukidaruma hoshi tonakai
+    // ポーズ: banzai hoshi flamingo disco robot hohoho yukidaruma tonakai
     sets: [
       {
         title: "ぜんはん", subtitle: "スポンジを やくぞ！", bpm: 96,
         phrases: [
           { who: "all", hits: [[3, "banzai"]] },
-          { who: "all", hits: [[2, "tonakai"], [4, "banzai"]] },
+          { who: "all", hits: [[2, "flamingo"], [4, "banzai"]] },
           { who: "all", hits: [[3, "disco"]] },
-          { who: "all", hits: [[2, "flamingo"], [4, "flamingo"]] },
-          { who: "all", hits: [[2, "pachi"], [3, "pachi"], [4, "hohoho"]] },
-          { who: "all", hits: [[2, "robot"], [4, "banzai"]] },
-          { who: "all", hits: [[3, "kenken"], [4, "kenken"]] },
-          { who: "all", hits: [[2, "hohoho"], [4, "disco"]] },
-          { who: "all", hits: [[2, "tonakai"], [3, "tonakai"], [4, "hoshi"]] },
-          { who: "all", hits: [[2, "robot"], [3, "robot"], [4, "pachi"]] },
+          { who: "all", hits: [[2, "robot"], [4, "hoshi"]] },
+          { who: "all", hits: [[2, "tonakai"], [3, "tonakai"], [4, "hohoho"]] },
           { who: "all", bars: 2, tame: true, hits: [[3, "yukidaruma"], [5, "hoshi"]] }
         ]
       },
       {
         title: "こうはん", subtitle: "かざりつけじゃ！", bpm: 116,
         phrases: [
-          { who: "all",   hits: [[2, "tonakai"], [3, "tonakai"], [4, "banzai"]] },
-          { who: "all",   hits: [[1, "disco"], [2.5, "disco"], [4, "hohoho"]] },
-          // リレー：5にんが 1はくずつ じゅんばんに（ここで 1にんずつの しゃしんを とる）
-          { who: "relay", bars: 2, hits: [[2, "banzai"], [3, "disco"], [4, "robot"], [5, "flamingo"], [6, "hoshi"]] },
-          { who: "all",   hits: [[2, "kenken"], [3, "kenken"], [4, "hoshi"]] },
-          { who: "fake",  hits: [[2, "haa"], [3, "haa"], [4, "sneeze"]] },
-          { who: "all",   hits: [[1.5, "robot"], [2, "robot"], [4, "banzai"]] },
-          { who: "all",   hits: [[2, "flamingo"], [3, "disco"], [4, "hohoho"]] },
-          { who: "all",   bars: 2, hits: [[2, "pachi"], [3, "pachi"], [4, "tonakai"], [5, "tonakai"], [6, "banzai"], [7, "hoshi"]] },
-          { who: "all",   hits: [[2, "robot"], [2.5, "robot"], [4, "disco"]] },
-          { who: "all",   hits: [[1, "pachi"], [2, "banzai"], [3, "pachi"], [4, "hoshi"]] },
-          { who: "all",   bars: 2, tame: true, hits: [[3, "yukidaruma"], [5, "hoshi"]] }
+          { who: "all",  hits: [[2, "disco"], [3, "disco"], [4, "banzai"]] },
+          { who: "all",  hits: [[1, "robot"], [2.5, "robot"], [4, "flamingo"]] },
+          { who: "fake", hits: [[2, "haa"], [3, "haa"], [4, "sneeze"]] },
+          { who: "all",  hits: [[2, "tonakai"], [3, "hohoho"], [4, "hoshi"]] },
+          { who: "all",  bars: 2, hits: [[2, "banzai"], [3, "disco"], [4, "robot"], [5, "flamingo"], [6, "hoshi"]] },
+          { who: "all",  bars: 2, tame: true, hits: [[3, "yukidaruma"], [5, "hoshi"]] }
         ]
       }
     ]

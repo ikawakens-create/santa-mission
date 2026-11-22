@@ -1,8 +1,9 @@
 // =============================================================
 //  Service Worker
 //  ★ config.js やコードを変えたら、CACHE_VERSION を1つ上げてデプロイ ★
+//  （ぜんぶの ファイルが この ばんごうで いっしょに 入れかわる）
 // =============================================================
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v7";
 const CACHE_NAME = `santa-mission-${CACHE_VERSION}`;
 
 const ASSETS = [
@@ -43,19 +44,6 @@ self.addEventListener("fetch", event => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-
-  // config.js だけは Network-First（オンラインなら最新）
-  if (url.pathname.endsWith("/config.js")) {
-    event.respondWith(
-      fetch(req, { cache: "no-store" })
-        .then(res => {
-          if (res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then(c => c.put(req, copy)); }
-          return res;
-        })
-        .catch(() => caches.match(req))
-    );
-    return;
-  }
 
   // ページを開くとき（オフラインでも index.html を返す）
   if (req.mode === "navigate") {
