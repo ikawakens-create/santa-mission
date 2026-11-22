@@ -61,3 +61,16 @@ export async function saveVoiceBlob(blob) {
 export async function deleteVoiceBlob() {
   await tx("readwrite", s => s.delete("santa"));
 }
+
+// 好きな キーで 音源などを ほぞん（スマホの 中だけ）
+export async function getBlob(key) {
+  try { return (await tx("readonly", s => s.get(key))) || null; }
+  catch (e) { return null; }
+}
+export async function saveBlob(key, blob) {
+  await tx("readwrite", s => s.put(blob, key));
+  try { await navigator.storage?.persist?.(); } catch (e) { /* noop */ }
+}
+export async function deleteBlob(key) {
+  await tx("readwrite", s => s.delete(key));
+}

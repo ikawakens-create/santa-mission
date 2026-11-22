@@ -5,6 +5,8 @@
 // =============================================================
 import { CONFIG } from "../config.js";
 import * as store from "./storage.js";
+import { getCtx, decodeBlob } from "./audio.js";
+import { createSynth } from "./posegame.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -115,6 +117,7 @@ function openPin() {
 }
 
 function close() {
+  if (window.__stopSongPreview) { window.__stopSongPreview(); window.__stopSongPreview = null; }
   root().innerHTML = "";
 }
 
@@ -172,6 +175,32 @@ async function openPanel() {
           <button class="a-btn a-primary" id="aSaveSil">完成図を保存</button>
         </div>
       </section>
+      <section class="a-sec">
+        <h3>6. おいわいの うた（音源）</h3>
+        <p class="a-note">何も入れなければ、アプリに入っている「${esc(CONFIG.key3.songTitle)}」が流れます。
+        好きな音源（mp3など）を入れると、それに差しかわります。音源はこのスマホの中だけに保存され、GitHubには上がりません。</p>
+        <div class="a-row"><input type="file" accept="audio/*" id="aSongFile"></div>
+        <label class="a-row">曲名 <input type="text" class="a-input" id="aSongTitle" placeholder="例：あわてんぼうの サンタクロース" value="${esc(store.load("songTitle", ""))}"></label>
+        <div class="a-row">
+          <button class="a-btn a-primary" id="aSongSave">音源を保存</button>
+          <button class="a-btn" id="aSongPlay">▶ 試聴</button>
+          <button class="a-btn a-danger a-small" id="aSongDel">音源を消して元に戻す</button>
+        </div>
+      </section>
+
+      <section class="a-sec">
+        <h3>7. テレビの ズレ調整（まねまねポーズ）</h3>
+        <p class="a-note">テレビにつないだ状態で「テスト」を押し、「ポン」という音と●の光るタイミングを比べてください。
+        光るのが音より遅いときは −（はやく）、早いときは ＋（おそく）に動かします。</p>
+        <div class="a-row">
+          <span>はやく</span><input type="range" min="-400" max="400" step="20" id="aOffset" class="a-dial" value="${Number(store.load("videoOffsetMs", 0)) || 0}"><span>おそく</span>
+          <b id="aOffsetVal"></b>
+        </div>
+        <div class="a-row">
+          <button class="a-btn" id="aSyncTest">▶ テスト（8拍）</button>
+          <span class="a-sync-dot" id="aSyncDot"></span>
+        </div>
+      </section>
       <div class="a-foot">左上ロゴ3秒長押し＋PINでいつでも開けます</div>
     </div>`;
 
@@ -179,8 +208,11 @@ async function openPanel() {
   const status = async () => {
     const sil = store.load("silhouette", null);
     const hasSil = !!(sil && sil.rows && sil.rows.some(r => r.includes("1")));
+    const hasSong = !!(await store.getBlob("song"));
+    if (!$("#aStatus")) return;
     $("#aStatus").innerHTML = `
       <span class="badge ${hasSil ? "ok" : "ng"}">完成図：${hasSil ? "あり" : "なし"}</span>
+      <span class="badge ${hasSong ? "ok" : ""}">歌：${hasSong ? "差しかえ音源" : "アプリのジングルベル"}</span>
       <span class="badge">現在：${SCREEN_NAMES[api.getStage()]}</span>`;
   };
   status();
@@ -206,6 +238,58 @@ async function openPanel() {
 
   // 4. 強制クリア
   $("#aSkip").onclick = () => { close(); if (changed.names || changed.sil) api.refresh(); api.skip(); };
+
+  // 6. おいわいの うた
+  let songPreview = null;
+  const stopPreview = () => { if (songPreview) { try { songPreview.stop(); } catch (e) {} songPreview = null; $("#aSongPlay").textContent = "▶ 試聴"; } };
+  window.__stopSongPreview = stopPreview;
+  const songStatus = () => status();
+  $("#aSongSave").onclick = async () => {
+    const f = $("#aSongFile").files[0];
+    store.save("songTitle", $("#aSongTitle").value.trim());
+    if (f) {
+      try { await decodeBlob(f); } catch (e) { alert("この音源は読み込めませんでした。mp3 などで試してください。"); return; }
+      await store.saveBlob("song", f);
+    }
+    toast(f ? "音源を保存しました" : "曲名を保存しました");
+    songStatus();
+  };
+  $("#aSongPlay").onclick = async () => {
+    if (songPreview) { stopPreview(); return; }
+    const b = await store.getBlob("song");
+    if (!b) { toast("差しかえ音源がありません（本番はアプリのジングルベルが流れます）"); return; }
+    const c = getCtx(); try { await c.resume(); } catch (e) {}
+    const buf = await decodeBlob(b);
+    const s = c.createBufferSource(); s.buffer = buf; s.connect(c.destination); s.start();
+    songPreview = s; $("#aSongPlay").textContent = "■ 停止";
+    s.onended = () => stopPreview();
+  };
+  $("#aSongDel").onclick = async () => {
+    if (!confirm("差しかえ音源を消して、アプリのジングルベルに戻しますか？")) return;
+    stopPreview();
+    await store.deleteBlob("song");
+    toast("アプリのジングルベルに戻しました");
+    songStatus();
+  };
+
+  // 7. テレビの ズレ調整
+  const off = $("#aOffset");
+  const showOff = () => { $("#aOffsetVal").textContent = `${off.value > 0 ? "+" : ""}${off.value}ミリ秒`; };
+  showOff();
+  off.oninput = () => { showOff(); store.save("videoOffsetMs", Number(off.value)); };
+  $("#aSyncTest").onclick = async () => {
+    const c = getCtx(); try { await c.resume(); } catch (e) {}
+    const synth = createSynth();
+    const spb = 0.5, t0 = c.currentTime + 0.3;
+    const lat = Math.min(0.2, (c.outputLatency || 0) + (c.baseLatency || 0) || 0.04) + Number(off.value) / 1000;
+    const dot = $("#aSyncDot");
+    for (let i = 0; i < 8; i++) {
+      synth.count(t0 + i * spb, i % 4 === 0);
+      const wait = (t0 + i * spb + lat - c.currentTime) * 1000;
+      setTimeout(() => { if (!dot.isConnected) return; dot.classList.remove("on"); void dot.offsetWidth; dot.classList.add("on"); }, Math.max(0, wait));
+    }
+    setTimeout(() => synth.stop(), 5000);
+  };
 
   // 5. 完成図エディタ
   const saved = store.load("silhouette", null);

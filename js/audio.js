@@ -150,3 +150,13 @@ export const sfx = {
   }
 };
 
+
+// Blob（音源ファイル）→ AudioBuffer
+export async function decodeBlob(blob) {
+  const c = getCtx();
+  const ab = await blob.arrayBuffer();
+  return await new Promise((resolve, reject) => {
+    const p = c.decodeAudioData(ab, resolve, reject);
+    if (p && p.then) p.then(resolve, reject);
+  });
+}

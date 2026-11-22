@@ -3,7 +3,7 @@
 // =============================================================
 import { CONFIG } from "../config.js";
 import * as store from "./storage.js";
-import { sfx, unlockAudio, getCtx } from "./audio.js";
+import { sfx, unlockAudio, getCtx, decodeBlob } from "./audio.js";
 import { SantaRig, POSE_NAMES, POSE_LOOK } from "./santa-rig.js";
 import { compileSet, createSynth, grooveBar, cakeSVG, DECO_COUNT } from "./posegame.js";
 import { startCamera, stopCamera } from "./camera.js";
@@ -758,7 +758,8 @@ function screen4(el) {
     const comp = compileSet(set, 0, 5);
     const c = getCtx();
     const spb = 60 / set.bpm;
-    const lat = Math.min(0.2, (c.outputLatency || 0) + (c.baseLatency || 0) || 0.04);
+    // 映像の ズレ ちょうせい（管理画面）：＋で 映像を おそく、−で はやく
+    const lat = Math.min(0.2, (c.outputLatency || 0) + (c.baseLatency || 0) || 0.04) + (Number(store.load("videoOffsetMs", 0)) || 0) / 1000;
     const t0 = c.currentTime + 0.35;
     const totalBars = Math.ceil(comp.beats / 4);
     const items = comp.items.map(it => ({ ...it, t: t0 + it.beat * spb, a: false, v: false }));
@@ -929,6 +930,7 @@ function treeSVG() {
 }
 
 function screen5(el) {
+  const S = CONFIG.key3;
   el.innerHTML = `
     <section class="screen s5 land">
       <div class="col col-l">
@@ -937,20 +939,31 @@ function screen5(el) {
       <div class="col col-r">
         <div class="mission-head"><span class="mh-num">🎉</span><span>おいわい</span></div>
         <div class="big-title">サンタさんに おれいの うたを とどけよう！</div>
-        <div class="song-card">🎵「${esc(CONFIG.key3.songTitle)}」🎵</div>
+        <div class="song-card" id="songTitle">🎵「${esc(S.songTitle)}」🎵</div>
         <div class="gauge">
           <div class="gauge-label">うたごえパワー <b id="gaugePct">0</b>%</div>
           <div class="gauge-bar"><div class="gauge-fill" id="gaugeFill"></div></div>
         </div>
-        <button class="btn btn-red btn-xl btn-pulse" id="sing">うたを はじめる！</button>
-        <p class="sending hidden" id="sending">サンタさんに うたごえを とどけているよ♪</p>
+        <button class="btn btn-red btn-xl btn-pulse" id="sing">♪ うたを はじめる！</button>
+        <p class="sending hidden" id="sending">♪ みんなで いっしょに うたおう！</p>
         <div class="delivered hidden" id="delivered">すてきな うたごえが とどいたよ！</div>
       </div>
     </section>`;
 
-  const durMs = Math.max(5, Number(CONFIG.key3.gaugeDurationSec) || 90) * 1000;
-  let raf = null, noteTimer = null, progress = 0, last = 0, fastForward = false, finished = false, singing = false;
+  let raf = null, noteTimer = null, progress = 0, finished = false, singing = false, alive = true;
+  let synth = null, src = null, customBuf = null;
   const orns = [...el.querySelectorAll(".orn")];
+
+  // パパが 管理画面で 入れた 音源が あれば それを つかう
+  (async () => {
+    const blob = await store.getBlob("song");
+    if (!blob || !alive) return;
+    try {
+      customBuf = await decodeBlob(blob);
+      const t = store.load("songTitle", "");
+      if (t) $("#songTitle", el).textContent = `🎵「${t}」🎵`;
+    } catch (e) { customBuf = null; }
+  })();
 
   const setProgress = p => {
     progress = Math.min(1, p);
@@ -958,7 +971,7 @@ function screen5(el) {
     $("#gaugePct", el).textContent = Math.floor(progress * 100);
     orns.forEach((o, i) => {
       const lit = progress >= (i + 1) / (ORNAMENTS.length + 1);
-      if (lit && !o.classList.contains("lit")) { o.classList.add("lit"); sfx.twinkle(); }
+      if (lit && !o.classList.contains("lit")) o.classList.add("lit");
     });
   };
 
@@ -973,42 +986,71 @@ function screen5(el) {
     setTimeout(() => n.remove(), 2600);
   };
 
+  const stopMusic = () => {
+    cancelAnimationFrame(raf); raf = null;
+    if (synth) { synth.stop(); synth = null; }
+    if (src) { try { src.stop(); } catch (e) {} src = null; }
+  };
+
   const finish = () => {
     if (finished) return; finished = true;
-    cancelAnimationFrame(raf); clearInterval(noteTimer);
+    stopMusic(); clearInterval(noteTimer);
     setProgress(1);
     el.querySelector(".tree-star").classList.add("lit");
     $("#treeWrap", el).classList.add("glow");
     $("#sending", el).classList.add("hidden");
     $("#delivered", el).classList.remove("hidden");
-    sfx.correct();
-    confetti.burst(window.innerWidth / 2, window.innerHeight * 0.4, 60);
-    setTimeout(() => goTo(6), 2400);
-  };
-
-  const tick = now => {
-    const dt = now - last; last = now;
-    const add = fastForward ? dt / 900 : dt / durMs;
-    setProgress(progress + add);
-    if (progress >= 1) { finish(); return; }
-    raf = requestAnimationFrame(tick);
+    sfx.fanfare();
+    confetti.burst(window.innerWidth / 2, window.innerHeight * 0.4, 80);
+    setTimeout(() => alive && goTo(6), 3000);
   };
 
   const begin = () => {
     if (singing) return; singing = true;
-    sfx.pop();
+    const c = getCtx();
     $("#sing", el).classList.add("hidden");
     $("#sending", el).classList.remove("hidden");
     $("#treeWrap", el).classList.add("singing");
     noteTimer = setInterval(spawnNote, 450);
-    last = performance.now();
+    let start, dur, schedule = null;
+    if (customBuf) {
+      src = c.createBufferSource();
+      src.buffer = customBuf;
+      src.connect(c.destination);
+      start = c.currentTime + 0.1;
+      src.start(start);
+      dur = customBuf.duration;
+    } else {
+      // アプリの ジングルベル：カウント1小節 ＋ サビ×loops
+      synth = createSynth();
+      const spb = 60 / (S.bpm || 116);
+      const bars = 1 + 16 * Math.max(1, S.loops || 2);
+      start = c.currentTime + 0.2;
+      dur = bars * 4 * spb;
+      let sched = 0;
+      schedule = () => {
+        while (sched < bars && start + sched * 4 * spb < c.currentTime + 0.3) {
+          const t = start + sched * 4 * spb;
+          if (sched === 0) for (let b = 0; b < 4; b++) synth.count(t + b * spb, b === 3);
+          else grooveBar(synth, t, spb, sched - 1, 1);
+          sched++;
+        }
+      };
+    }
+    const tick = () => {
+      if (!alive || finished) return;
+      if (schedule) schedule();
+      setProgress((c.currentTime - start) / dur);
+      if (progress >= 1) { finish(); return; }
+      raf = requestAnimationFrame(tick);
+    };
     raf = requestAnimationFrame(tick);
   };
 
-  $("#sing", el).addEventListener("click", begin);
+  $("#sing", el).addEventListener("click", () => { sfx.pop(); begin(); });
   return {
-    cleanup: () => { cancelAnimationFrame(raf); clearInterval(noteTimer); },
-    skip: () => { if (!singing) begin(); fastForward = true; }
+    cleanup: () => { alive = false; stopMusic(); clearInterval(noteTimer); },
+    skip: () => { if (!singing) { singing = true; } finish(); }
   };
 }
 
