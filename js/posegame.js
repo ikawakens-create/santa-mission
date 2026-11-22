@@ -45,7 +45,9 @@ export function createSynth() {
     clap(t) { nz(t, 0.09, 0.5, "bandpass", 1500, 0.8); nz(t + 0.012, 0.12, 0.4, "bandpass", 1300, 0.8); },
     bell(t, accent) { nz(t, 0.05, accent ? 0.28 : 0.14, "highpass", 7000); },
     bass(t, midi, dur) { osc("triangle", mtof(midi), t, dur, 0.5); osc("sine", mtof(midi - 12), t, dur, 0.35); },
-    stab(t, midis) { midis.forEach(m => osc("square", mtof(m), t, 0.12, 0.06)); },
+    stab(t, midis) { midis.forEach(m => osc("square", mtof(m), t, 0.12, 0.05)); },
+    // メロディ（ジングルベル）
+    lead(t, midi, dur) { osc("square", mtof(midi), t, dur, 0.085); osc("sine", mtof(midi + 12), t, Math.min(0.25, dur), 0.05); },
     count(t, hi) { osc("square", hi ? 1568 : 1046.5, t, 0.1, 0.15); },
     // サンタの「ホッ！」（ポーズごとに すこし たかさが かわる）
     ho(t, pitch = 1) {
@@ -73,10 +75,32 @@ export function createSynth() {
   };
 }
 
-// 1小節ごとの コード（C → Am → F → G）
-const PROG = [[48, [60, 64, 67]], [45, [57, 60, 64]], [41, [57, 60, 65]], [43, [59, 62, 67]]];
+// ---------------- ジングルベル（1857年・パブリックドメイン） ----------------
+// [MIDIノート, はく]  16小節＝64はく で 1しゅう
+const JINGLE = [
+  [76,1],[76,1],[76,2], [76,1],[76,1],[76,2], [76,1],[79,1],[72,1.5],[74,0.5], [76,4],
+  [77,1],[77,1],[77,1.5],[77,0.5], [77,1],[76,1],[76,1],[76,0.5],[76,0.5], [76,1],[74,1],[74,1],[76,1], [74,2],[79,2],
+  [76,1],[76,1],[76,2], [76,1],[76,1],[76,2], [76,1],[79,1],[72,1.5],[74,0.5], [76,4],
+  [77,1],[77,1],[77,1],[77,1], [77,1],[76,1],[76,1],[76,0.5],[76,0.5], [79,1],[79,1],[77,1],[74,1], [72,4]
+];
+// 小節ごとの [ベースの根音, コード]
+const HARMONY = [
+  [48, [60, 64, 67]], [48, [60, 64, 67]], [48, [60, 64, 67]], [48, [60, 64, 67]],
+  [41, [60, 65, 69]], [48, [60, 64, 67]], [50, [60, 62, 66]], [43, [59, 62, 67]],
+  [48, [60, 64, 67]], [48, [60, 64, 67]], [48, [60, 64, 67]], [48, [60, 64, 67]],
+  [41, [60, 65, 69]], [48, [60, 64, 67]], [43, [59, 62, 67]], [48, [60, 64, 67]]
+];
+const MELODY_BARS = (() => {
+  const bars = Array.from({ length: 16 }, () => []);
+  let pos = 0;
+  JINGLE.forEach(([n, b]) => { bars[Math.floor(pos / 4)].push([pos % 4, n, b]); pos += b; });
+  return bars;
+})();
+
+// 1小節ぶんの おと（ドラム・ベース・すず・コード・メロディ）
 export function grooveBar(synth, t0, spb, barIndex, intensity) {
-  const [root, chord] = PROG[barIndex % PROG.length];
+  const bi = barIndex % 16;
+  const [root, chord] = HARMONY[bi];
   for (let b = 0; b < 4; b++) {
     const t = t0 + b * spb;
     if (b % 2 === 0) synth.kick(t);
@@ -84,8 +108,9 @@ export function grooveBar(synth, t0, spb, barIndex, intensity) {
     synth.bell(t, true);
     synth.bell(t + spb / 2, false);
     synth.bass(t, root + (b === 3 ? 7 : 0), spb * 0.8);
-    if (intensity > 0 && b % 2 === 1) synth.stab(t + spb / 2, chord);
+    if (b % 2 === 1 || intensity > 0) synth.stab(t + spb / 2, chord);
   }
+  MELODY_BARS[bi].forEach(([p, n, b]) => synth.lead(t0 + p * spb, n, b * spb * 0.85));
 }
 
 // ---------------- ふめん → イベント ----------------
@@ -118,6 +143,7 @@ export function compileSet(set, rot, nKids = 5) {
     if (who.type === "fake") {
       items.push({ beat: r + 1, kind: "fakeResp" });
     } else {
+      hits.forEach((h, i) => items.push({ beat: r + h.pos - 1, kind: "preview", pose: h.pose, i }));
       hits.forEach((h, i) => items.push({
         beat: r + h.pos, kind: "respHit", pose: h.pose, i, last: i === hits.length - 1,
         target: who.type === "relay" ? { type: "kids", ids: [who.ids[i]] } : who, who

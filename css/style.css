@@ -727,3 +727,46 @@ body.in-call #keys { display: none; }
 .vc-bubble { padding-top: 30px; }
 .vc-bubble::before { top: -30px; font-size: 44px; }
 .vc-live:has(#vcWin:not(.hidden)) .pg-setlabel { display: none; }
+
+/* ---------- ワープ ---------- */
+.warp-card { flex-direction: row !important; gap: 28px; }
+.warp-tv { font-size: 120px; animation: wobble 1.4s ease-in-out infinite; }
+.warp-side { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.warp-step { display: flex; align-items: center; gap: 10px; font-size: 20px; background: #fff; border-radius: 14px; padding: 6px 16px; box-shadow: 0 3px 0 #e6d9c3; }
+.warp-fx { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; pointer-events: none; overflow: hidden;
+  background: radial-gradient(circle, rgba(255,255,255,.9) 0%, rgba(124,214,255,.6) 30%, rgba(40,20,90,0) 70%); animation: warpBg 1.7s ease-out forwards; }
+@keyframes warpBg { 0% { opacity: 0; } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+.warp-ring { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px; border-radius: 50%;
+  border: 10px dashed #fff; animation: warpRing 1.4s ease-in forwards; }
+.warp-ring.r2 { border-color: #ffc93c; animation-delay: .2s; }
+@keyframes warpRing { from { transform: scale(.2) rotate(0); opacity: 1; } to { transform: scale(9) rotate(540deg); opacity: 0; } }
+.warp-text { font-size: 64px; color: #fff; text-shadow: 0 5px 0 #2386a8, 0 0 24px rgba(0,0,0,.4); animation: popIn .5s cubic-bezier(.2, 1.8, .4, 1); }
+
+/* つぎの ポーズの よこく */
+.pg-next {
+  position: absolute; right: 44px; top: calc(50% + 10px); z-index: 5; --pc: #fff;
+  width: 112px; height: 112px; border-radius: 50%; background: #fff; border: 6px dashed var(--pc);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,.35);
+}
+.pg-next small { font-size: 15px; color: #3a2a1e; line-height: 1; }
+.pg-next span { font-size: 54px; line-height: 1.05; }
+.pg-next.pop-in { animation: popIn .3s cubic-bezier(.2, 1.8, .4, 1), nextPulse .3s .3s ease-in-out infinite alternate; }
+@keyframes nextPulse { to { transform: scale(1.1); } }
+.pg-cake { top: 52px; width: 118px; }
+
+/* スキャンで のぞきこむ サンタ */
+.scan-santa { position: absolute; left: 16px; bottom: 40px; z-index: 4; width: 150px; height: 190px; }
+.ss-rig { position: absolute; inset: 0; }
+.ss-rig svg { width: 100%; height: 100%; overflow: visible; }
+.ss-glass { position: absolute; right: -24px; top: 54px; font-size: 56px; animation: glass 1.2s ease-in-out infinite; transform-origin: 20% 80%; }
+@keyframes glass { 0%, 100% { transform: translate(0, 0) rotate(-10deg); } 50% { transform: translate(18px, -8px) rotate(12deg); } }
+.scan-santa.happy .ss-glass { display: none; }
+.ss-bubble { position: absolute; left: 120px; top: 0; white-space: nowrap; background: #fff; color: #3a2a1e; border-radius: 18px; padding: 6px 14px; font-size: 20px;
+  border: 4px solid #e63946; box-shadow: 0 4px 10px rgba(0,0,0,.35); }
+.scan-santa.happy .ss-bubble { background: #ffc93c; color: #a8202c; font-size: 24px; animation: popIn .4s cubic-bezier(.2, 1.8, .4, 1); }
+.scan-count { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); z-index: 4; font-size: 110px; color: #fff;
+  text-shadow: 0 6px 0 #b81f2c, 0 0 20px rgba(0,0,0,.5); }
+.scan-count.pop-in { animation: countIn .4s cubic-bezier(.2, 1.8, .4, 1); }
+@keyframes countIn { from { transform: translateY(-50%) scale(.3); } to { transform: translateY(-50%) scale(1); } }
+.scan-santa.happy .ss-bubble { display: none; }
+.pg-posename { width: 200px; left: 6px; white-space: nowrap; font-size: 26px; }

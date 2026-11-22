@@ -3,7 +3,7 @@
 //  ★ config.js やコードを変えたら、CACHE_VERSION を1つ上げてデプロイ ★
 //  （ぜんぶの ファイルが この ばんごうで いっしょに 入れかわる）
 // =============================================================
-const CACHE_VERSION = "v7";
+const CACHE_VERSION = "v8";
 const CACHE_NAME = `santa-mission-${CACHE_VERSION}`;
 
 const ASSETS = [

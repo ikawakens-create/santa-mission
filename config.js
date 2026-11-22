@@ -44,49 +44,53 @@ export const CONFIG = {
     ]
   },
 
-  // まねまねポーズ クリスマスケーキ（サンタからの ビデオでんわ）
+  // カギ③：まねまねポーズ クリスマスケーキ（サンタからの ビデオでんわ → テレビに ワープ）
   poseGame: {
     // でんわに でた あとの サンタの せりふ
     talk: [
       "おお！ みんな！\nつみき、かんぺきじゃったな！",
-      "サンタは いま ケーキづくりで おおいそがし！\nサンタの ポーズを まねして、てつだっておくれ！"
+      "さいごの カギは、サンタと おどって\nクリスマスケーキを つくると あくぞ！"
+    ],
+    // ワープの まえの せりふ
+    warpTalk: [
+      "…でも スマホじゃ ちいさくて おどりが みえんのう。\nテレビに ワープするぞ！ テレビを つけておくれ！"
+    ],
+    // ワープ した あとの せりふ
+    afterWarpTalk: [
+      "ワープ せいこう！\nおおきな がめんで よく みえるぞ〜！"
     ],
     // ぜんはんが おわったときの せりふ
     halfTalk: [
       "いいぞ〜！ スポンジが やけた！\nつぎは かざりつけ。もっと はやく なるぞ〜！"
     ],
-    // ケーキが かんせいしたあとの せりふ（{song} は きょくめいに おきかわる）
+    // ケーキが かんせいしたあとの せりふ
     clearTalk: [
-      "すばらしい！ さいこうの ケーキが できたぞ！\nさいごの カギを あける まほうは… みんなの うたごえじゃ！",
-      "「{song}」を\n5にんで おおきな こえで うたっておくれ！"
+      "すばらしい！ さいこうの ケーキが できたぞ！\nやくそくどおり、さいごの カギを あけよう！"
     ],
 
     // ---- ふめん ----
-    // 1ぎょう＝1フレーズ（サンタの おてほん → みんなの ばん）
-    // who: "all"=みんな / "fake"=ハックション（まねしない）
-    // hits: [はく, ポーズ]  はくは 1〜4（bars:2 なら 1〜8）。2.5 のような うらはくも OK
+    // 1ぎょう＝1フレーズ（サンタが おどる → サンタと いっしょに）
+    // hits: [はく, ポーズ]  はくは 1〜4（bars:2 なら 1〜8）。ポーズは 2はく いじょう あけると まねしやすい
     // ポーズ: banzai hoshi flamingo disco robot hohoho yukidaruma tonakai
     sets: [
       {
-        title: "ぜんはん", subtitle: "スポンジを やくぞ！", bpm: 96,
+        title: "ぜんはん", subtitle: "スポンジを やくぞ！", bpm: 100,
         phrases: [
-          { who: "all", hits: [[3, "banzai"]] },
-          { who: "all", hits: [[2, "flamingo"], [4, "banzai"]] },
-          { who: "all", hits: [[3, "disco"]] },
-          { who: "all", hits: [[2, "robot"], [4, "hoshi"]] },
-          { who: "all", hits: [[2, "tonakai"], [3, "tonakai"], [4, "hohoho"]] },
-          { who: "all", bars: 2, tame: true, hits: [[3, "yukidaruma"], [5, "hoshi"]] }
+          { who: "all", hits: [[1, "banzai"]] },
+          { who: "all", hits: [[1, "flamingo"], [3, "banzai"]] },
+          { who: "all", hits: [[1, "disco"], [3, "robot"]] },
+          { who: "all", hits: [[1, "tonakai"], [3, "hohoho"]] },
+          { who: "all", bars: 2, tame: true, hits: [[1, "yukidaruma"], [5, "hoshi"]] }
         ]
       },
       {
-        title: "こうはん", subtitle: "かざりつけじゃ！", bpm: 116,
+        title: "こうはん", subtitle: "かざりつけじゃ！", bpm: 120,
         phrases: [
-          { who: "all",  hits: [[2, "disco"], [3, "disco"], [4, "banzai"]] },
-          { who: "all",  hits: [[1, "robot"], [2.5, "robot"], [4, "flamingo"]] },
-          { who: "fake", hits: [[2, "haa"], [3, "haa"], [4, "sneeze"]] },
-          { who: "all",  hits: [[2, "tonakai"], [3, "hohoho"], [4, "hoshi"]] },
-          { who: "all",  bars: 2, hits: [[2, "banzai"], [3, "disco"], [4, "robot"], [5, "flamingo"], [6, "hoshi"]] },
-          { who: "all",  bars: 2, tame: true, hits: [[3, "yukidaruma"], [5, "hoshi"]] }
+          { who: "all", hits: [[1, "hoshi"], [3, "yukidaruma"]] },
+          { who: "all", hits: [[1, "robot"], [3, "disco"]] },
+          { who: "all", bars: 2, hits: [[1, "banzai"], [3, "flamingo"], [5, "tonakai"], [7, "hoshi"]] },
+          { who: "all", hits: [[1, "hohoho"], [3, "banzai"]] },
+          { who: "all", bars: 2, tame: true, hits: [[1, "yukidaruma"], [5, "hoshi"]] }
         ]
       }
     ]

@@ -9,7 +9,7 @@ import * as store from "./storage.js";
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const SCREEN_NAMES = ["0 スタート", "1 メール", "2 カギ①", "3 カギ②", "4 まねまねポーズ", "5 カギ③", "6 エンディング"];
+const SCREEN_NAMES = ["0 スタート", "1 メール", "2 カギ①", "3 カギ②", "4 ワープ＋カギ③", "5 おいわいの うた", "6 エンディング"];
 
 let api = null;
 const root = () => $("#admin-root");

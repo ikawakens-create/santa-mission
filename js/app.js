@@ -38,7 +38,7 @@ export function getNames() {
   return CONFIG.key1.hints.map((h, i) => (saved[i] && saved[i].trim()) || h.defaultName);
 }
 
-function keysUnlocked(stage) { return stage >= 6 ? 3 : stage >= 4 ? 2 : stage >= 3 ? 1 : 0; }
+function keysUnlocked(stage) { return stage >= 5 ? 3 : stage >= 4 ? 2 : stage >= 3 ? 1 : 0; }
 
 function updateHud(count = keysUnlocked(state.stage)) {
   const keys = $("#keys");
@@ -109,7 +109,7 @@ function showUnlock(n, next) {
       <div class="unlock-side">
         <div class="unlock-text hidden">${n}つめの カギが<br><b>あいた！</b></div>
         <div class="unlock-count hidden">カギ ${n} / 3</div>
-        <button class="btn btn-gold hidden" id="unlockNext">${n < 3 ? "つぎへ すすむ！" : "さいごの ページへ！"}</button>
+        <button class="btn btn-gold hidden" id="unlockNext">${n < 3 ? "つぎへ すすむ！" : "🎉 おいわいへ！"}</button>
       </div>
     </div>`;
   const lock = $(".unlock-lock", overlayEl);
@@ -435,6 +435,12 @@ function screen3(el) {
           <div class="scan-status" id="scanStatus">スキャンちゅう…</div>
           <div class="scan-bar"><div class="scan-fill" id="scanFill"></div></div>
         </div>
+        <div class="scan-santa" id="scanSanta">
+          <div class="ss-rig" id="ssRig"></div>
+          <div class="ss-glass">🔍</div>
+          <div class="ss-bubble" id="ssBubble">どれどれ…</div>
+        </div>
+        <div class="scan-count hidden" id="scanCount"></div>
         <button class="scan-back" id="scanBack">もどる</button>
         <div class="scan-perfect hidden" id="scanPerfect">ピピッ！<br><b>かんぺきじゃ！</b></div>
       </div>
@@ -443,6 +449,7 @@ function screen3(el) {
   const video = $("#camVideo", el);
   const scan = $("#scan", el);
   let timer = null, beepTimer = null, startAt = 0, finished = false, scanning = false;
+  let ssRig = null, lastCount = -1;
 
   const stopScan = () => {
     clearInterval(timer); clearInterval(beepTimer);
@@ -456,6 +463,10 @@ function screen3(el) {
     $("#scanFill", el).style.width = "100%";
     $("#scanPerfect", el).classList.remove("hidden");
     $("#scanStatus", el).textContent = "かんりょう！";
+    $("#scanCount", el).classList.add("hidden");
+    $("#scanSanta", el).classList.add("happy");
+    $("#ssBubble", el).textContent = "かんぺきじゃ！";
+    if (ssRig) { ssRig.pose("banzai"); ssRig.hop(); }
     sfx.perfect();
     vibrate([50, 50, 50]);
     setTimeout(() => showUnlock(2, 4), 1600);
@@ -467,6 +478,11 @@ function screen3(el) {
     scanning = true;
     $("#scanFill", el).style.width = "0%";
     $("#scanPerfect", el).classList.add("hidden");
+    $("#scanSanta", el).classList.remove("happy");
+    $("#ssBubble", el).textContent = "どれどれ…";
+    if (!ssRig) ssRig = new SantaRig($("#ssRig", el));
+    ssRig.pose("hohoho");
+    lastCount = -1;
     try {
       await startCamera(video);
       if (!scanning) stopCamera(video); // 途中で もどった
@@ -480,6 +496,16 @@ function screen3(el) {
     timer = setInterval(() => {
       const p = Math.min(1, (performance.now() - startAt) / dur);
       $("#scanFill", el).style.width = `${p * 100}%`;
+      // さいごの 3びょうは カウントダウン
+      const left = Math.ceil((dur - (performance.now() - startAt)) / 1000);
+      if (left <= 3 && left >= 1 && left !== lastCount) {
+        lastCount = left;
+        const c = $("#scanCount", el);
+        c.textContent = left;
+        c.className = "scan-count pop-in";
+        sfx.count();
+        if (left === 3) $("#ssBubble", el).textContent = "ふむふむ…";
+      }
       if (p >= 1) finish();
     }, 50);
   };
@@ -490,7 +516,7 @@ function screen3(el) {
   });
 
   return {
-    cleanup: stopScan,
+    cleanup: () => { stopScan(); if (ssRig) ssRig.destroy(); },
     skip: () => { if (!finished) finish(); }
   };
 }
@@ -532,6 +558,7 @@ function screen4(el) {
               <div class="pg-posebg" id="pgPoseBg"><span id="pgPoseIcon"></span></div>
               <div class="pg-santa" id="pgSanta"></div>
               <div class="pg-posename" id="pgPoseName"></div>
+              <div class="pg-next hidden" id="pgNext"></div>
               <div class="pg-count hidden" id="pgCount"></div>
               <div class="pg-tame hidden" id="pgTame">ためて〜〜…</div>
               <div class="pg-fake hidden" id="pgFake"></div>
@@ -553,12 +580,24 @@ function screen4(el) {
           <div class="vc-card hidden" id="rules">
             <div class="rules-title">あそびかた</div>
             <div class="rules-row">
-            <div class="rule"><span class="rn">1</span><span class="ri">👀</span><span>サンタが ポーズを<br>みせるよ！ よく みてね</span></div>
-            <div class="rule"><span class="rn">2</span><span class="ri">🙌</span><span>がめんが ひかって<br><b>「みんなの ばん！」</b>に なったら<br>5にん いっしょに まねっこ！</span></div>
+            <div class="rule"><span class="rn">1</span><span class="ri">👀</span><span>まずは サンタが おどるよ！<br>よく みてね</span></div>
+            <div class="rule"><span class="rn">2</span><span class="ri">🙌</span><span>がめんが きんいろに なったら<br><b>サンタと いっしょに</b><br>5にんで おどろう！</span></div>
             </div>
             <div class="rules-note">ポーズを きめるたびに<br>🎂 ケーキが できあがっていくよ！</div>
             <button class="btn btn-red btn-xl btn-pulse" id="go">わかった！<br>スタート！</button>
           </div>
+
+          <div class="vc-card warp-card hidden" id="warpWait">
+            <div class="warp-tv">📺</div>
+            <div class="warp-side">
+              <div class="rules-title">テレビに ワープ！</div>
+              <div class="warp-step"><span class="rn">1</span>テレビを つけてね</div>
+              <div class="warp-step"><span class="rn">2</span>パパに つないで もらってね</div>
+              <div class="rules-note">テレビに うつったら ボタンを おしてね！</div>
+              <button class="btn btn-red btn-xl btn-pulse" id="warpBtn">✨ ワープ！</button>
+            </div>
+          </div>
+          <div class="warp-fx hidden" id="warpFx"><div class="warp-ring"></div><div class="warp-ring r2"></div><div class="warp-text">シュワーン！</div></div>
         </div>
       </div>
     </section>`;
@@ -584,7 +623,29 @@ function screen4(el) {
     show("live");
     rig = new SantaRig($("#pgSanta", el));
     rig.pose("hohoho");
-    talk(G.talk, () => { show("rules"); sfx.pikon(); rig.pose("idle"); });
+    talk(G.talk.concat(G.warpTalk || []), () => {
+      rig.pose("idle");
+      show("warpWait");
+      sfx.pikon();
+    });
+  });
+
+  // ---- テレビに ワープ ----
+  $("#warpBtn", el).addEventListener("click", () => {
+    show("warpWait", false);
+    phase = "warp";
+    sfx.whoosh();
+    later(() => sfx.unlock(), 250);
+    vibrate([40, 30, 80]);
+    const fx = $("#warpFx", el);
+    fx.classList.remove("hidden");
+    rig.pose("yukidaruma");
+    later(() => { rig.pose("hoshi"); rig.hop(); confetti.burst(window.innerWidth / 2, window.innerHeight * 0.45, 80); }, 900);
+    later(() => {
+      fx.classList.add("hidden");
+      rig.pose("banzai");
+      talk(G.afterWarpTalk || [], () => { rig.pose("idle"); show("rules"); sfx.pikon(); });
+    }, 1700);
   });
 
   // ---- サンタの せりふ ----
@@ -642,7 +703,7 @@ function screen4(el) {
     const ph = $("#pgPhase", el);
     show("pgPhase");
     ph.className = `pg-phase ${mode} pop-in`;
-    ph.innerHTML = mode === "call" ? "👀 サンタを みてね！" : "🙌 みんなの ばん！";
+    ph.innerHTML = mode === "call" ? "👀 サンタが おどるよ！" : "🙌 サンタと いっしょに！";
   }
 
   let seg = null;
@@ -740,7 +801,16 @@ function screen4(el) {
           seg = { start: it.t, len: it.len };
           show("pgTame", false);
           break;
+        case "preview": {
+          const look = POSE_LOOK[it.pose] || { icon: "", color: "#fff" };
+          const nx = $("#pgNext", el);
+          nx.style.setProperty("--pc", look.color);
+          nx.innerHTML = `<small>つぎは</small><span>${look.icon}</span>`;
+          nx.className = "pg-next pop-in";
+          break;
+        }
         case "respHit":
+          show("pgNext", false);
           showPose(it.pose, true);
           revealDot(it.i, it.pose);
           flash();
@@ -756,6 +826,7 @@ function screen4(el) {
         }
         case "phraseEnd":
           clearPose();
+          show("pgNext", false);
           if (it.who.type !== "fake") addDeco(2);
           break;
       }
@@ -793,7 +864,7 @@ function screen4(el) {
   function finale() {
     phase = "finale";
     stopGame();
-    show("pgCount", false); show("pgTame", false); show("pgFake", false); show("pgRhythm", false); show("pgPhase", false);
+    show("pgCount", false); show("pgTame", false); show("pgFake", false); show("pgRhythm", false); show("pgPhase", false); show("pgNext", false);
     while (decoCount < DECO_COUNT) addDeco(1);
     el.querySelector(".cake-cream").classList.add("on");
     $("#pgCake", el).classList.add("done");
@@ -808,7 +879,8 @@ function screen4(el) {
       $("#pgCake", el).classList.remove("done");
       stage.classList.remove("finale");
       clearPose();
-      talk(G.clearTalk, () => { sfx.correct(); goTo(5); }, "わかった！<br>うたを うたう！");
+      rig.pose("hohoho");
+      talk(G.clearTalk, () => { rig.pose("banzai"); showUnlock(3, 5); }, "🔑 カギを あける！");
     }, 3200);
   }
 
@@ -829,7 +901,7 @@ function screen4(el) {
     skip: () => {
       if (phase === "finale") return;
       clearInterval(ringTimer);
-      show("incoming", false); show("rules", false); show("talkBox", false); show("vcWin", false);
+      show("incoming", false); show("rules", false); show("talkBox", false); show("vcWin", false); show("warpWait", false); show("warpFx", false);
       show("live");
       if (!rig) rig = new SantaRig($("#pgSanta", el));
       finale();
@@ -863,8 +935,8 @@ function screen5(el) {
         <div class="tree-wrap" id="treeWrap">${treeSVG()}<div class="notes" id="notes"></div></div>
       </div>
       <div class="col col-r">
-        <div class="mission-head"><span class="mh-num">3</span><span>3つめの カギ</span></div>
-        <div class="big-title">みんなで クリスマスソングを うたおう！</div>
+        <div class="mission-head"><span class="mh-num">🎉</span><span>おいわい</span></div>
+        <div class="big-title">サンタさんに おれいの うたを とどけよう！</div>
         <div class="song-card">🎵「${esc(CONFIG.key3.songTitle)}」🎵</div>
         <div class="gauge">
           <div class="gauge-label">うたごえパワー <b id="gaugePct">0</b>%</div>
@@ -911,7 +983,7 @@ function screen5(el) {
     $("#delivered", el).classList.remove("hidden");
     sfx.correct();
     confetti.burst(window.innerWidth / 2, window.innerHeight * 0.4, 60);
-    setTimeout(() => showUnlock(3, 6), 2200);
+    setTimeout(() => goTo(6), 2400);
   };
 
   const tick = now => {
