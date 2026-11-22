@@ -5,12 +5,11 @@
 // =============================================================
 import { CONFIG } from "../config.js";
 import * as store from "./storage.js";
-import { startRecording, decodeBlob, VoicePlayer, ZONES, zoneOf, getDemoVoice } from "./audio.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const SCREEN_NAMES = ["0 スタート", "1 メール", "2 カギ①", "3 カギ②", "4 こえ", "5 カギ③", "6 エンディング"];
+const SCREEN_NAMES = ["0 スタート", "1 メール", "2 カギ①", "3 カギ②", "4 まねまねポーズ", "5 カギ③", "6 エンディング"];
 
 let api = null;
 const root = () => $("#admin-root");
@@ -20,7 +19,8 @@ export function initAdmin(appApi) {
   const logo = $("#logo");
   const br = $("#corner-br");
   const down = { tl: new Set(), br: new Set() };
-  let adminTimer = null, skipTimer = null;
+  const downAt = {};
+  let adminTimer = null, skipTimer = null, skipFired = false;
 
   const both = () => down.tl.size > 0 && down.br.size > 0;
   const clearTimers = () => { clearTimeout(adminTimer); clearTimeout(skipTimer); adminTimer = skipTimer = null; };
@@ -31,7 +31,7 @@ export function initAdmin(appApi) {
       if (!skipTimer) {
         skipTimer = setTimeout(() => {
           skipTimer = null;
-          if (both()) { flashCorner(); api.skip(); }
+          if (both()) { skipFired = true; flashCorner(); api.skip(); }
         }, 2000);
       }
     } else {
@@ -42,6 +42,8 @@ export function initAdmin(appApi) {
   const bind = (el, key) => {
     el.addEventListener("pointerdown", e => {
       e.preventDefault();
+      if (!down.tl.size && !down.br.size) skipFired = false;
+      downAt[e.pointerId] = performance.now();
       down[key].add(e.pointerId);
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
       if (key === "tl" && !both()) {
@@ -51,7 +53,13 @@ export function initAdmin(appApi) {
       onChange();
     });
     const up = e => {
+      if (!down[key].has(e.pointerId)) return;
       down[key].delete(e.pointerId);
+      // みじかい 1かいタップ（もう片方は おしていない）
+      const other = key === "tl" ? down.br : down.tl;
+      if (e.type === "pointerup" && !skipFired && !other.size && performance.now() - (downAt[e.pointerId] || 0) < 450) {
+        api.cornerTap && api.cornerTap();
+      }
       if (key === "tl") { clearTimeout(adminTimer); adminTimer = null; }
       onChange();
     };
@@ -106,14 +114,7 @@ function openPin() {
   });
 }
 
-let testPlayer = null;
-let recorder = null;
-let recTimer = null;
-
 function close() {
-  if (testPlayer) { testPlayer.dispose(); testPlayer = null; }
-  if (recorder) { recorder.stop(); recorder = null; }
-  clearInterval(recTimer);
   root().innerHTML = "";
 }
 
@@ -141,7 +142,7 @@ async function openPanel() {
 
       <section class="a-sec">
         <h3>2. 最初からリセット</h3>
-        <p class="a-note">進行状況とカギ①のミス回数だけ消します（名前・録音・完成図は残ります）。</p>
+        <p class="a-note">進行状況とカギ①のミス回数だけ消します（名前・完成図は残ります）。</p>
         <button class="a-btn a-danger" id="aReset">最初からリセット</button>
       </section>
 
@@ -152,29 +153,13 @@ async function openPanel() {
 
       <section class="a-sec">
         <h3>4. 現在のステージを強制クリア</h3>
-        <p class="a-note">本番中は「左上ロゴ＋右下の角を同時に2秒長押し」でも同じことができます。</p>
+        <p class="a-note">本番中は「左上ロゴ＋右下の角を同時に2秒長押し」でも同じことができます。<br>
+        まねまねポーズでは、ゲームを飛ばして「ベストポーズ写真館」に進みます。</p>
         <button class="a-btn a-primary" id="aSkip">強制クリア</button>
       </section>
 
       <section class="a-sec">
-        <h3>5. サンタの声 録音スタジオ</h3>
-        <p class="a-note">※すこし早口で話すと、正解ゾーン（0.8倍速）でちょうどよい低い声になります。<br>
-        話す曲名は「${esc(CONFIG.key3.songTitle)}」にそろえてください。</p>
-        <div class="a-rec">
-          <button class="a-btn a-rec-btn" id="aRec">● 録音開始</button>
-          <span id="aRecTime"></span>
-        </div>
-        <label class="a-row a-switch"><input type="checkbox" id="aFx" ${store.load("santaFx", true) ? "checked" : ""}> サンタ風加工（正解ゾーンで0.8倍速＋エコー）</label>
-        <div class="a-test">
-          <button class="a-btn" id="aPlay">▶ テスト再生</button>
-          <input type="range" min="0" max="100" value="50" id="aDial" class="a-dial">
-          <span id="aZone"></span>
-        </div>
-        <button class="a-btn a-danger a-small" id="aDelRec">録音を削除</button>
-      </section>
-
-      <section class="a-sec">
-        <h3>6. 完成図エディタ</h3>
+        <h3>5. 完成図エディタ</h3>
         <p class="a-note">実物のピース5個で先に組んでから、その形をなぞってください。マスをタップでON/OFF。</p>
         <div class="a-row">
           <button class="a-btn" data-size="8x6">8×6</button>
@@ -192,11 +177,9 @@ async function openPanel() {
 
   const changed = { names: false, sil: false };
   const status = async () => {
-    const hasVoice = !!(await store.getVoiceBlob());
     const sil = store.load("silhouette", null);
     const hasSil = !!(sil && sil.rows && sil.rows.some(r => r.includes("1")));
     $("#aStatus").innerHTML = `
-      <span class="badge ${hasVoice ? "ok" : "ng"}">録音：${hasVoice ? "あり" : "なし"}</span>
       <span class="badge ${hasSil ? "ok" : "ng"}">完成図：${hasSil ? "あり" : "なし"}</span>
       <span class="badge">現在：${SCREEN_NAMES[api.getStage()]}</span>`;
   };
@@ -224,72 +207,7 @@ async function openPanel() {
   // 4. 強制クリア
   $("#aSkip").onclick = () => { close(); if (changed.names || changed.sil) api.refresh(); api.skip(); };
 
-  // 5. 録音
-  const recBtn = $("#aRec");
-  recBtn.onclick = async () => {
-    if (!recorder) {
-      try {
-        await api.ensureAudio();
-        if (testPlayer) { testPlayer.dispose(); testPlayer = null; $("#aPlay").textContent = "▶ テスト再生"; }
-        recorder = await startRecording();
-        recBtn.textContent = "■ 録音停止";
-        recBtn.classList.add("recording");
-        const t0 = Date.now();
-        recTimer = setInterval(() => { $("#aRecTime").textContent = `${((Date.now() - t0) / 1000).toFixed(1)} 秒`; }, 100);
-      } catch (e) {
-        alert("マイクが使えませんでした。マイクの権限を確認してください。\n" + e.message);
-      }
-    } else {
-      const r = recorder; recorder = null;
-      clearInterval(recTimer);
-      recBtn.textContent = "● 録音開始";
-      recBtn.classList.remove("recording");
-      const blob = await r.stop();
-      if (blob && blob.size > 0) {
-        await store.saveVoiceBlob(blob);
-        toast("録音を保存しました");
-        status();
-      } else {
-        toast("録音できませんでした");
-      }
-    }
-  };
-
-  $("#aFx").onchange = e => {
-    store.save("santaFx", e.target.checked);
-    if (testPlayer) { testPlayer.dispose(); testPlayer = null; $("#aPlay").textContent = "▶ テスト再生"; }
-  };
-
-  const dial = $("#aDial");
-  const showZone = () => { const z = ZONES[zoneOf(Number(dial.value))]; $("#aZone").textContent = `${z.emoji} ${dial.value}%`; };
-  showZone();
-  dial.oninput = () => { showZone(); if (testPlayer) testPlayer.setPosition(Number(dial.value)); };
-
-  $("#aPlay").onclick = async () => {
-    if (testPlayer && testPlayer.playing) {
-      testPlayer.stop(); $("#aPlay").textContent = "▶ テスト再生"; return;
-    }
-    await api.ensureAudio();
-    if (!testPlayer) {
-      const blob = await store.getVoiceBlob();
-      let buf = null;
-      if (blob) { try { buf = await decodeBlob(blob); } catch (e) { alert("録音データを読み込めませんでした"); } }
-      if (!buf) { buf = await getDemoVoice(); toast("録音がないので見本の声で再生します"); }
-      testPlayer = new VoicePlayer(buf, { santaFx: $("#aFx").checked });
-    }
-    testPlayer.setPosition(Number(dial.value), true);
-    testPlayer.start(0);
-    $("#aPlay").textContent = "■ 停止";
-  };
-
-  $("#aDelRec").onclick = async () => {
-    if (!confirm("録音を削除しますか？")) return;
-    if (testPlayer) { testPlayer.dispose(); testPlayer = null; $("#aPlay").textContent = "▶ テスト再生"; }
-    await store.deleteVoiceBlob();
-    toast("録音を削除しました"); status();
-  };
-
-  // 6. 完成図エディタ
+  // 5. 完成図エディタ
   const saved = store.load("silhouette", null);
   let grid = saved && saved.rows ? saved.rows.map(r => r.split("").map(c => c === "1")) : makeGrid(8, 6);
   const renderEditor = () => {

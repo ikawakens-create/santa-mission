@@ -1,11 +1,12 @@
-// カギ② スキャン用カメラ（必ず track.stop() で止める）
+// カメラ（カギ②のスキャン＝背面 ／ サンタのビデオ電話＝自撮り）
+// 使い終わったら必ず track.stop() で止める
 let stream = null;
 
-export async function startCamera(videoEl) {
+export async function startCamera(videoEl, facing = "environment") {
   stopCamera();
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("no camera api");
   stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: "environment" } },
+    video: { facingMode: { ideal: facing } },
     audio: false
   });
   videoEl.srcObject = stream;

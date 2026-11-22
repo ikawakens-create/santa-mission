@@ -2,7 +2,7 @@
 //  Service Worker
 //  ★ config.js やコードを変えたら、CACHE_VERSION を1つ上げてデプロイ ★
 // =============================================================
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v4";
 const CACHE_NAME = `santa-mission-${CACHE_VERSION}`;
 
 const ASSETS = [
@@ -16,6 +16,8 @@ const ASSETS = [
   "./js/storage.js",
   "./js/camera.js",
   "./js/admin.js",
+  "./js/santa-rig.js",
+  "./js/posegame.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];

@@ -3,7 +3,9 @@
 // =============================================================
 import { CONFIG } from "../config.js";
 import * as store from "./storage.js";
-import { sfx, unlockAudio, getCtx, VoicePlayer, ZONES, zoneOf, decodeBlob, getDemoVoice } from "./audio.js";
+import { sfx, unlockAudio, getCtx } from "./audio.js";
+import { SantaRig, POSE_NAMES } from "./santa-rig.js";
+import { compileSet, createSynth, grooveBar, cakeSVG, DECO_COUNT } from "./posegame.js";
 import { startCamera, stopCamera } from "./camera.js";
 import { initAdmin } from "./admin.js";
 
@@ -20,7 +22,7 @@ const state = {
   misses: store.load("misses", 0),
   started: false
 };
-let current = { cleanup: null, skip: null };
+let current = { cleanup: null, skip: null, cornerTap: null };
 
 function clampStage(n) { n = Number(n) || 0; return Math.max(0, Math.min(6, n)); }
 
@@ -62,7 +64,7 @@ function vibrate(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (
 // ---------- 画面遷移 ----------
 function goTo(n) {
   if (current.cleanup) { try { current.cleanup(); } catch (e) { console.warn(e); } }
-  current = { cleanup: null, skip: null };
+  current = { cleanup: null, skip: null, cornerTap: null };
   overlayEl.innerHTML = "";
   overlayEl.className = "";
   state.stage = clampStage(n);
@@ -74,6 +76,7 @@ function goTo(n) {
   const res = screen(stageEl) || {};
   current.cleanup = res.cleanup || null;
   current.skip = res.skip || null;
+  current.cornerTap = res.cornerTap || null;
 }
 
 function skipCurrent() {
@@ -457,127 +460,436 @@ function screen3(el) {
 }
 
 // =============================================================
-//  画面4  でんぱの わるい サンタの こえ
+//  画面4  サンタからの ビデオでんわ ＆「まねまねポーズ クリスマスケーキ」
 // =============================================================
+const COLOR_HEX = { red: "#e63946", green: "#2a9d5c", gold: "#ffc93c", blue: "#4cc9f0", pink: "#ff8fb1" };
+const POSE_PITCH = { banzai: 1, pachi: 1.12, disco: 1.25, flamingo: 0.9, hohoho: 0.8, kenken: 1.18, robot: 1.05, yukidaruma: 0.75, hoshi: 1.33, tonakai: 0.95, haa: 1.1 };
+
 function screen4(el) {
+  const G = CONFIG.poseGame;
+  const names = getNames();
+  const kidColor = i => COLOR_HEX[KID_COLORS[i % KID_COLORS.length]];
   el.innerHTML = `
     <section class="screen s4">
-      <div class="mission-head mh-blue"><span class="mh-num">📻</span><span>こえの メッセージ！</span></div>
-      <p class="lead">サンタさんから こえの メッセージが とどいたよ！<br><b>……あれ？ でんぱが わるくて へんな こえだよ！</b></p>
-      <div class="radio zone-0" id="radio">
-        <div class="antenna" id="antenna">
-          <span></span><span></span><span></span><span></span><span></span>
-          <em class="ant-label">でんぱ</em>
+      <div class="vcall" id="vcall">
+        <video id="selfie" class="selfie hidden" playsinline muted></video>
+        <div class="vc-bg" id="vcBg"></div>
+
+        <div class="vc-incoming" id="incoming">
+          <div class="vc-in-label">📹 ビデオでんわ</div>
+          <div class="vc-avatar">🎅</div>
+          <div class="vc-caller">サンタさん</div>
+          <div class="vc-decline-msg hidden" id="declineMsg">サンタ「でておくれ〜い！」</div>
+          <div class="vc-buttons">
+            <button class="vc-btn vc-no" id="decline"><span>📵</span>でない</button>
+            <button class="vc-btn vc-yes" id="answer"><span>📞</span>でる</button>
+          </div>
         </div>
-        <div class="char" id="char">🦖</div>
-        <div class="zone-label" id="zoneLabel">かいじゅう？</div>
-        <div class="hold-ring" id="holdRing"><div class="hold-fill" id="holdFill"></div></div>
+
+        <div class="vc-live hidden" id="live">
+          <div class="vc-win" id="vcWin"><span class="vc-win-face">🎅</span><span>サンタ</span><span class="vc-rec">● つうわちゅう</span></div>
+
+          <!-- ゲーム -->
+          <div class="pg hidden" id="pg">
+            <div class="pg-stage" id="pgStage">
+              <div class="pg-beam pg-beam-l" id="beamL"></div>
+              <div class="pg-beam pg-beam-r" id="beamR"></div>
+              <div class="pg-floor"></div>
+              <div class="pg-santa" id="pgSanta"></div>
+              <div class="pg-posename" id="pgPoseName"></div>
+              <div class="pg-setlabel" id="pgSetLabel"></div>
+              <div class="pg-cake" id="pgCake">${cakeSVG()}</div>
+              <div class="pg-gauge"><div class="pg-gauge-fill" id="pgGauge"></div></div>
+              <div class="pg-banner hidden" id="pgBanner"></div>
+              <div class="pg-count hidden" id="pgCount"></div>
+              <div class="pg-tame hidden" id="pgTame">ためて〜〜…</div>
+            </div>
+            <div class="pg-rhythm" id="pgRhythm">
+              <div class="pg-turn" id="pgTurn"></div>
+              <div class="pg-track" id="pgTrack"></div>
+            </div>
+            <div class="pg-cam" id="pgCam">
+              <div class="pg-camlabel hidden" id="pgCamLabel"></div>
+              <div class="pg-flash" id="pgFlash"></div>
+              <div class="pg-fake hidden" id="pgFake"></div>
+            </div>
+          </div>
+
+          <div class="vc-talk hidden" id="talkBox">
+            <div class="vc-bubble" id="bubble"></div>
+            <button class="btn btn-green" id="talkNext">つぎへ ▶</button>
+          </div>
+
+          <div class="vc-card hidden" id="rules">
+            <div class="rules-title">あそびかた</div>
+            <div class="rule"><span class="rn">1</span><span class="ri">🎅</span><span>サンタが ポーズを<br>みせるよ！ よく みてね</span></div>
+            <div class="rule"><span class="rn">2</span><span class="ri">📣</span><span><b>なまえを よばれた こ</b>が<br>おなじ リズムで まねっこ！</span></div>
+            <div class="rule"><span class="rn">3</span><span class="ri">🌈</span><span><b>「みんな！」</b>の ときは<br>5にん ぜんいんで！</span></div>
+            <div class="rules-note">ポーズを きめるたびに<br>🎂 ケーキが できあがっていくよ！</div>
+            <button class="btn btn-gold" id="rulesOk">わかった！</button>
+          </div>
+
+          <div class="vc-card hidden" id="setup">
+            <div class="rules-title">じゅんび しよう！</div>
+            <div class="setup-emoji">📱 ➡ 👧👧👧👧👧</div>
+            <div class="setup-text">スマホを たてかけて、<br>5にん みんなが がめんに<br>うつるように ならんでね！</div>
+            <button class="btn btn-red btn-xl btn-pulse" id="go">じゅんび OK！<br>スタート！</button>
+          </div>
+
+          <div class="vc-card gallery hidden" id="gallery">
+            <div class="rules-title">📸 ベストポーズ しゃしんかん</div>
+            <div class="gal-grid" id="galGrid"></div>
+            <button class="btn btn-gold" id="galNext">つぎへ ▶</button>
+          </div>
+        </div>
       </div>
-      <button class="btn btn-red btn-play" id="play">▶ こえを きく</button>
-      <div class="dial-wrap">
-        <div class="dial-ends"><span>🦖</span><span>🤖</span><span>❓</span><span>🐠</span><span>🐿️</span></div>
-        <input type="range" min="0" max="100" value="10" step="1" class="dial" id="dial" aria-label="ツマミ">
-      </div>
-      <p class="guide">みんなで じゅんばんに ツマミを うごかしてみよう！</p>
-      <div class="got-it hidden" id="gotIt">ピコーン！ でんぱが あったよ！</div>
-      <div class="bubble hidden" id="bubble">${nl2br(CONFIG.voice.fallbackMessage)}</div>
-      <button class="btn btn-gold btn-xl btn-pulse hidden" id="next">わかった！<br>うたを うたう！</button>
-      <div class="papa-note hidden" id="papaNote">（パパへ）こえが ろくおんされていません</div>
     </section>`;
 
-  let player = null;
-  let isFallback = false;
-  let holdMs = 0, done = false, disposed = false;
-  const dial = $("#dial", el);
-  const radio = $("#radio", el);
-  const charEl = $("#char", el);
-  const playBtn = $("#play", el);
-  let lastZone = -1;
+  const video = $("#selfie", el);
+  document.body.classList.add("in-call");
+  let alive = true;
+  let ringTimer = null, raf = null, synth = null, rig = null;
+  let phase = "ring";
+  let rot = 0, decoCount = 0;
+  const shots = {};
+  const show = (id, on = true) => $("#" + id, el).classList.toggle("hidden", !on);
+  const later = (fn, ms) => setTimeout(() => alive && fn(), ms);
 
-  (async () => {
-    const blob = await store.getVoiceBlob();
-    let buf = null;
-    if (blob) { try { buf = await decodeBlob(blob); } catch (e) { buf = null; } }
-    if (!buf) {
-      isFallback = true;
-      $("#papaNote", el).classList.remove("hidden");
-      try { buf = await getDemoVoice(); } catch (e) { buf = null; }
+  // ---- ちゃくしん ----
+  const ring = () => { sfx.ring(); vibrate([200, 100, 200]); };
+  ring();
+  ringTimer = setInterval(ring, 1800);
+  $("#decline", el).addEventListener("click", () => { sfx.wrong(); show("declineMsg"); shake($("#incoming", el)); });
+  $("#answer", el).addEventListener("click", async () => {
+    clearInterval(ringTimer);
+    sfx.correct();
+    phase = "talk";
+    show("incoming", false);
+    show("live");
+    try {
+      await startCamera(video, "user");
+      if (!alive) { stopCamera(video); return; }
+      video.classList.remove("hidden");
+    } catch (e) {
+      $("#vcBg", el).classList.add("fallback");
     }
-    if (disposed) return;
-    player = new VoicePlayer(buf, { santaFx: store.load("santaFx", true) });
-    player.setPosition(Number(dial.value), true);
-  })();
-
-  const updateUI = v => {
-    const z = zoneOf(v);
-    const dist = Math.max(0, Math.abs(v - 50) - 10);
-    const bars = z === 2 ? 5 : Math.max(1, 4 - Math.floor(dist / 10));
-    $("#antenna", el).querySelectorAll("span").forEach((s, i) => s.classList.toggle("on", i < bars));
-    $("#antenna", el).classList.toggle("full", z === 2);
-    if (z !== lastZone) {
-      radio.className = `radio zone-${z}`;
-      charEl.textContent = ZONES[z].emoji;
-      $("#zoneLabel", el).textContent = ZONES[z].label;
-      charEl.classList.remove("boing"); void charEl.offsetWidth; charEl.classList.add("boing");
-      if (lastZone !== -1) vibrate(15);
-      lastZone = z;
-    }
-  };
-
-  const setPlaying = on => {
-    if (!player || !player.buffer) return;
-    if (on && !player.playing) { player.start(0); playBtn.innerHTML = "■ とめる"; playBtn.classList.add("on"); }
-    if (!on && player.playing) { player.stop(); playBtn.innerHTML = "▶ こえを きく"; playBtn.classList.remove("on"); }
-  };
-
-  playBtn.addEventListener("click", () => { sfx.pop(); setPlaying(!(player && player.playing)); });
-  dial.addEventListener("input", () => {
-    const v = Number(dial.value);
-    if (player) { player.setPosition(v); if (!player.playing) setPlaying(true); }
-    updateUI(v);
+    talk(G.talk, () => { show("talkBox", false); show("rules"); sfx.pikon(); });
   });
 
-  const succeed = () => {
-    if (done) return; done = true;
+  // ---- サンタの せりふ ----
+  function talk(lines, done, lastLabel = "つぎへ ▶") {
+    let i = 0;
+    const bubble = $("#bubble", el);
+    const btn = $("#talkNext", el);
+    show("talkBox");
+    const say = () => {
+      bubble.innerHTML = nl2br(lines[i].replace(/\{song\}/g, CONFIG.key3.songTitle));
+      bubble.classList.remove("pop-in"); void bubble.offsetWidth; bubble.classList.add("pop-in");
+      [0, 120, 240].forEach(d => later(() => sfx.key(Math.floor(Math.random() * 5)), d));
+      btn.innerHTML = i === lines.length - 1 ? lastLabel : "つぎへ ▶";
+    };
+    btn.onclick = () => {
+      sfx.pop();
+      i++;
+      if (i < lines.length) say(); else { btn.onclick = null; show("talkBox", false); done(); }
+    };
+    say();
+  }
+
+  $("#rulesOk", el).addEventListener("click", () => { sfx.pop(); show("rules", false); show("setup"); });
+  $("#go", el).addEventListener("click", () => {
+    sfx.correct();
+    show("setup", false);
+    startGame();
+  });
+
+  // ---- ゲーム ----
+  function whoText(who) {
+    if (!who || who.type === "all" || who.type === "fake") return "みんな！";
+    if (who.type === "relay") return "リレー！";
+    return who.ids.map(i => names[i]).join(" と ") + "！";
+  }
+  function whoColors(who) {
+    if (!who || who.type === "all" || who.type === "fake" || who.type === "relay") return null;
+    return who.ids.map(kidColor);
+  }
+  function setBanner(who, mode) {
+    const b = $("#pgBanner", el);
+    const cols = whoColors(who);
+    b.className = "pg-banner pop-in" + (cols ? "" : " rainbow");
+    b.style.background = cols ? (cols.length > 1 ? `linear-gradient(90deg, ${cols.join(",")})` : cols[0]) : "";
+    b.innerHTML = mode === "call"
+      ? `<small>つぎは…</small>${esc(whoText(who))}`
+      : `${esc(whoText(who))}<small> の ばん！</small>`;
+    // スポットライトの いろ
+    const c = cols ? cols[0] : "#fff6c9";
+    const c2 = cols ? cols[cols.length - 1] : "#fff6c9";
+    $("#beamL", el).style.setProperty("--beam", c);
+    $("#beamR", el).style.setProperty("--beam", c2);
+  }
+  function setCamLabel(who) {
+    const l = $("#pgCamLabel", el);
+    const cols = whoColors(who);
+    l.classList.remove("hidden");
+    l.className = "pg-camlabel pop-in" + (cols ? "" : " rainbow");
+    l.style.background = cols ? (cols.length > 1 ? `linear-gradient(90deg, ${cols.join(",")})` : cols[0]) : "";
+    l.innerHTML = `📸 ${esc(whoText(who))}`;
+    $("#pgCam", el).style.setProperty("--cam", cols ? cols[0] : "#ffffff");
+  }
+
+  let seg = null; // { start, len, spb, mode }
+  function drawTrack(hits, len, who, mode) {
+    const track = $("#pgTrack", el);
+    const cols = whoColors(who);
+    const col = mode === "call" ? "#ff5a67" : (cols ? cols[0] : "#ffc93c");
+    let html = "";
+    for (let b = 0; b < len; b++) html += `<span class="pg-tick ${b % 4 === 0 ? "bar" : ""}" style="left:${(b / len) * 100}%"></span>`;
+    hits.forEach((h, i) => {
+      const c = who && who.type === "relay" && mode === "resp" ? kidColor(who.ids[i]) : col;
+      html += `<span class="pg-dot" data-i="${i}" style="left:${(h.pos / len) * 100}%;--dot:${c}"></span>`;
+    });
+    html += `<span class="pg-playhead" id="pgPlayhead"></span>`;
+    track.innerHTML = html;
+    track.className = `pg-track ${mode}`;
+    $("#pgTurn", el).innerHTML = mode === "call"
+      ? `👀 <b>サンタ</b>を よく みてね！`
+      : `✨ <b>${esc(whoText(who).replace(/！$/, ""))}</b>の ばん！`;
+    $("#pgRhythm", el).className = `pg-rhythm ${mode}`;
+  }
+  function pulseDot(i) {
+    const d = el.querySelector(`.pg-dot[data-i="${i}"]`);
+    if (d) { d.classList.remove("hit"); void d.offsetWidth; d.classList.add("hit"); }
+  }
+  function flash() {
+    const f = $("#pgFlash", el);
+    f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
+  }
+  const snapCanvas = document.createElement("canvas");
+  function snap(key) {
+    if (!video.videoWidth) return;
+    const w = 360, h = Math.round(w * video.videoHeight / video.videoWidth);
+    snapCanvas.width = w; snapCanvas.height = h;
+    const g = snapCanvas.getContext("2d");
+    g.setTransform(-1, 0, 0, 1, w, 0);
+    g.drawImage(video, 0, 0, w, h);
+    try { shots[key] = snapCanvas.toDataURL("image/jpeg", 0.75); } catch (e) { /* noop */ }
+  }
+  function addDeco() {
+    const d = el.querySelector(`.deco[data-i="${decoCount}"]`);
+    if (d) d.classList.add("on");
+    decoCount++;
+    $("#pgGauge", el).style.height = `${Math.min(100, (decoCount / DECO_COUNT) * 100)}%`;
+    const cake = $("#pgCake", el);
+    cake.classList.remove("boing"); void cake.offsetWidth; cake.classList.add("boing");
+    if (decoCount >= 11) el.querySelector(".cake-cream").classList.add("on");
+  }
+
+  function startGame() {
+    phase = "game";
+    show("pg");
+    $("#vcWin", el).classList.add("hidden");
+    rig = new SantaRig($("#pgSanta", el));
+    synth = createSynth();
+    runSet(0, () => {
+      rig.pose("hohoho");
+      synth.tada(getCtx().currentTime + 0.05);
+      $("#pgTurn", el).innerHTML = "🎉 ぜんはん クリア！";
+      later(() => talk(G.halfTalk, () => runSet(1, finale), "スタート！"), 900);
+    });
+  }
+
+  function runSet(si, onDone) {
+    const set = G.sets[si];
+    const comp = compileSet(set, rot, names.length);
+    rot = comp.rot;
+    const c = getCtx();
+    const spb = 60 / set.bpm;
+    const lat = Math.min(0.2, (c.outputLatency || 0) + (c.baseLatency || 0) || 0.04);
+    const t0 = c.currentTime + 0.35;
+    const totalBars = Math.ceil(comp.beats / 4);
+    const items = comp.items.map(it => ({ ...it, t: t0 + it.beat * spb, a: false, v: false }));
+    let barSched = 0, lastBeat = -1;
+    $("#pgSetLabel", el).innerHTML = `${esc(set.title)}<small>${esc(set.subtitle)}</small>`;
+    show("pgCamLabel", false);
+    $("#pgTrack", el).innerHTML = "";
+    $("#pgTurn", el).innerHTML = "♪ はじまるよ〜！";
+
+    const audio = (it, t) => {
+      if (it.kind === "count") synth.count(t, it.n === 3);
+      else if (it.kind === "callHit") { if (it.pose === "sneeze") synth.sneeze(t); else synth.ho(t, POSE_PITCH[it.pose] || 1); }
+      else if (it.kind === "respHit") synth.pose(t);
+    };
+    const visual = it => {
+      switch (it.kind) {
+        case "count": {
+          const cnt = $("#pgCount", el);
+          cnt.classList.remove("hidden");
+          cnt.textContent = ["3", "2", "1", "スタート！"][it.n];
+          cnt.className = "pg-count pop-in" + (it.n === 3 ? " go" : "");
+          break;
+        }
+        case "callStart":
+          show("pgCount", false); show("pgFake", false); show("pgTame", false);
+          rig.pose("idle");
+          setBanner(it.who, "call");
+          drawTrack(it.hits, it.len, it.who, "call");
+          seg = { start: it.t, len: it.len };
+          $("#pgPoseName", el).textContent = "";
+          if (it.who.type === "relay") setCamLabel({ type: "kids", ids: [it.who.ids[0]] });
+          else setCamLabel(it.who);
+          break;
+        case "callHit":
+          rig.pose(it.pose);
+          $("#pgPoseName", el).textContent = POSE_NAMES[it.pose] || "";
+          $("#pgPoseName", el).className = "pg-posename pop-in";
+          pulseDot(it.i);
+          break;
+        case "tame": show("pgTame"); break;
+        case "respStart":
+          rig.pose("idle");
+          setBanner(it.who.type === "fake" ? { type: "all" } : it.who, "resp");
+          drawTrack(it.hits, it.len, it.who, "resp");
+          seg = { start: it.t, len: it.len };
+          show("pgTame", false);
+          if (it.who.type === "relay") setCamLabel({ type: "kids", ids: [it.who.ids[0]] });
+          break;
+        case "respHit":
+          rig.pose(it.pose);
+          $("#pgPoseName", el).textContent = POSE_NAMES[it.pose] || "";
+          $("#pgPoseName", el).className = "pg-posename pop-in";
+          pulseDot(it.i);
+          flash();
+          vibrate(20);
+          if (it.who.type === "relay") {
+            const nextId = it.who.ids[it.i + 1];
+            snap(it.who.ids[it.i]);
+            if (nextId !== undefined) setCamLabel({ type: "kids", ids: [nextId] });
+          } else if (it.last && it.target.type === "kids") {
+            it.target.ids.forEach(id => { if (it.target.ids.length === 1 || !shots[id]) snap(id); });
+          } else if (it.last && it.target.type === "all") {
+            snap("all");
+          }
+          { const r = $("#pgCake", el).getBoundingClientRect(); confetti.burst(r.left + r.width / 2, r.top + r.height / 2, 14); }
+          break;
+        case "fakeResp": {
+          const f = $("#pgFake", el);
+          f.innerHTML = "ハックション〜！<br><b>まねしちゃ ダメ〜！</b><br><small>ひっかかった こは いるかな？</small>";
+          f.classList.remove("hidden");
+          f.className = "pg-fake pop-in";
+          sfx.moved();
+          break;
+        }
+        case "phraseEnd":
+          rig.pose("idle");
+          $("#pgPoseName", el).textContent = "";
+          if (it.who.type !== "fake") addDeco();
+          break;
+      }
+    };
+
+    const loop = () => {
+      if (!alive) return;
+      const now = c.currentTime;
+      while (barSched < totalBars && t0 + barSched * 4 * spb < now + 0.3) {
+        if (barSched >= 1) grooveBar(synth, t0 + barSched * 4 * spb, spb, barSched - 1, si);
+        else for (let b = 0; b < 4; b++) synth.bell(t0 + b * spb, true);
+        barSched++;
+      }
+      let done = true;
+      for (const it of items) {
+        if (!it.a && it.t < now + 0.12) { it.a = true; audio(it, Math.max(it.t, now)); }
+        if (!it.v && now - lat >= it.t) { it.v = true; visual(it); }
+        if (!it.v) done = false;
+      }
+      const vnow = now - lat;
+      const beatNo = Math.floor((vnow - t0) / spb);
+      if (beatNo !== lastBeat && beatNo >= 0) { lastBeat = beatNo; rig.bob(); }
+      if (seg) {
+        const p = Math.max(0, Math.min(1, (vnow - seg.start) / (seg.len * spb)));
+        const ph = el.querySelector("#pgPlayhead");
+        if (ph) ph.style.left = `${p * 100}%`;
+      }
+      if (done) { raf = null; seg = null; onDone(); return; }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+  }
+
+  // ---- フィナーレ：なまえを よぶ → しゃしんかん ----
+  function finale() {
+    phase = "finale";
+    show("pgCount", false); show("pgTame", false); show("pgFake", false);
+    // のこりの かざりを ぜんぶ のせる
+    while (decoCount < DECO_COUNT) addDeco();
+    el.querySelector(".cake-cream").classList.add("on");
+    $("#pgCake", el).classList.add("done");
+    rig.pose("hoshi");
+    $("#pgPoseName", el).textContent = "";
+    $("#pgTurn", el).innerHTML = "🎂 ケーキ かんせい！";
+    $("#pgTrack", el).innerHTML = "";
+    sfx.fanfare();
+    confetti.rain(5000);
+    names.forEach((n, i) => later(() => {
+      setBanner({ type: "kids", ids: [i] }, "resp");
+      $("#pgBanner", el).innerHTML = `${esc(n)}<small> ありがとう！</small>`;
+      sfx.key(i + 3);
+      rig.pose(["banzai", "disco", "hohoho", "kenken", "pachi"][i % 5]);
+    }, 1400 + i * 900));
+    later(() => {
+      setBanner({ type: "all" }, "resp");
+      $("#pgBanner", el).innerHTML = "メリークリスマス！";
+      $("#pgBanner", el).classList.add("wide");
+      rig.pose("hoshi");
+      sfx.correct();
+    }, 1400 + names.length * 900);
+    later(showGallery, 2600 + names.length * 900);
+  }
+
+  function showGallery() {
+    phase = "gallery";
+    const grid = $("#galGrid", el);
+    grid.innerHTML = names.map((n, i) => `
+      <div class="gal-card" style="--kc:${kidColor(i)}">
+        ${shots[i] ? `<img src="${shots[i]}" alt="">` : `<div class="gal-noimg">🎅</div>`}
+        <div class="gal-name">${esc(n)}</div>
+      </div>`).join("") + (shots.all ? `
+      <div class="gal-card gal-all" style="--kc:#ffc93c"><img src="${shots.all}" alt=""><div class="gal-name">みんなで ポーズ！</div></div>` : "");
+    show("pg", false);
+    show("gallery");
     sfx.pikon();
-    vibrate([40, 30, 40]);
-    radio.classList.add("tuned");
-    $("#gotIt", el).classList.remove("hidden");
-    // 録音した こえは さいしょから はっきり ききなおせる
-    if (player && player.playing) { player.start(0); }
-    if (isFallback) $("#bubble", el).classList.remove("hidden");
-    setTimeout(() => {
-      $("#next", el).classList.remove("hidden");
-      $("#next", el).scrollIntoView({ behavior: "smooth", block: "end" });
-    }, isFallback ? 900 : 2500);
-  };
+  }
+  $("#galNext", el).addEventListener("click", () => {
+    sfx.pop();
+    show("gallery", false);
+    show("pg", false);
+    $("#vcWin", el).classList.remove("hidden");
+    talk(G.clearTalk, () => { sfx.correct(); goTo(5); }, "わかった！<br>うたを うたう！");
+  });
 
-  const holdFill = $("#holdFill", el);
-  const loop = setInterval(() => {
-    const z = zoneOf(Number(dial.value));
-    const playing = player && player.playing;
-    if (!done && z === 2 && (playing || (player && !player.buffer))) {
-      holdMs += 100;
-      holdFill.style.transform = `scaleX(${Math.min(1, holdMs / 1000)})`;
-      $("#holdRing", el).classList.add("show");
-      if (holdMs >= 1000) succeed();
-    } else if (!done) {
-      holdMs = 0;
-      holdFill.style.transform = "scaleX(0)";
-      $("#holdRing", el).classList.remove("show");
-    }
-  }, 100);
-
-  $("#next", el).addEventListener("click", () => { sfx.correct(); goTo(5); });
-  updateUI(Number(dial.value));
+  function stopGame() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = null;
+    if (synth) { synth.stop(); synth = null; }
+  }
 
   return {
-    cleanup: () => { disposed = true; clearInterval(loop); if (player) player.dispose(); },
+    cleanup: () => {
+      document.body.classList.remove("in-call");
+      alive = false;
+      clearInterval(ringTimer);
+      stopGame();
+      if (rig) rig.destroy();
+      stopCamera(video);
+    },
     skip: () => {
-      if (done) { goTo(5); return; }
-      dial.value = 50; updateUI(50);
-      if (player) { player.setPosition(50); setPlaying(true); }
-      succeed();
+      // 早送り：ゲームを とばして しゃしんかんへ
+      if (phase === "gallery" || phase === "finale") return;
+      clearInterval(ringTimer);
+      stopGame();
+      show("incoming", false); show("rules", false); show("setup", false); show("talkBox", false);
+      show("live");
+      if (!rig) { show("pg"); rig = new SantaRig($("#pgSanta", el)); }
+      finale();
     }
   };
 }
@@ -871,6 +1183,7 @@ initAdmin({
   getStage: () => state.stage,
   goTo: n => { state.misses = n === 0 ? 0 : state.misses; goTo(n); },
   skip: skipCurrent,
+  cornerTap: () => { if (current.cornerTap) current.cornerTap(); },
   reset: () => {
     state.misses = 0; store.save("misses", 0);
     state.started = false;
